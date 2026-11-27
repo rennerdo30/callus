@@ -293,7 +293,7 @@ impl KnowledgeStore for PgStore {
     }
 
     async fn upsert_pattern(&self, pattern: &ErrorPattern) -> Result<ErrorPattern, StoreError> {
-        let delta = u64_to_i64(pattern.occurrence_count.max(1), "occurrence_count")?;
+        let delta = u64_to_i64(pattern.occurrence_count, "occurrence_count")?;
         let row = sqlx::query(SQL_UPSERT_PATTERN)
             .bind(&pattern.id)
             .bind(&pattern.signature_hash)

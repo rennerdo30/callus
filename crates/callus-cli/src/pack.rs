@@ -164,7 +164,7 @@ async fn import_single_rule(
             tool_name: rule.tool_name.clone(),
             scope: Scope::PublicPack,
             repo_hash: None,
-            occurrence_count: 1,
+            occurrence_count: 0,
             first_seen_at: now.to_owned(),
             last_seen_at: now.to_owned(),
             embedding_status: EmbeddingStatus::Pending,
@@ -207,12 +207,12 @@ async fn import_single_rule(
         })
         .await?;
     store
-        .record_edge_feedback(&err_node, EdgeType::ResolvedBy, &fix_node, 3, 0, 3, now)
+        .record_edge_feedback(&err_node, EdgeType::ResolvedBy, &fix_node, 0, 0, 0, now)
         .await?;
 
     if let Some(env_id) = env_node_id {
         store
-            .record_edge_feedback(&err_node, EdgeType::OccursIn, env_id, 0, 0, 1, now)
+            .record_edge_feedback(&err_node, EdgeType::OccursIn, env_id, 0, 0, 0, now)
             .await?;
     }
 

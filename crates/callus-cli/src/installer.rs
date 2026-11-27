@@ -2,7 +2,7 @@
 //!
 //! Shows the exact per-tool plan (hooks, plugins, MCP configs, timestamped backups),
 //! asks `[y/N]` before touching each tool (unless `--yes`), safely defaults to `no` on
-//! non-TTY stdin, and offers OS-appropriate curated MIT starter rule packs.
+//! non-TTY stdin, and starts with an empty database unless `--packs` is passed explicitly.
 
 use std::{
     io::{IsTerminal as _, Write as _},
@@ -47,10 +47,10 @@ pub(crate) struct Args {
     /// Configure project-local directories instead of user home
     #[arg(long)]
     project: bool,
-    /// Import OS-appropriate starter rule packs without asking (install only)
+    /// Import optional OS starter rule packs (opt-in; fresh installs start empty by default)
     #[arg(long, conflicts_with = "no_packs")]
     packs: bool,
-    /// Skip offering starter rule packs (install only)
+    /// Deprecated no-op (fresh installs no longer import starter packs by default)
     #[arg(long, conflicts_with = "packs")]
     no_packs: bool,
     /// Override base home directory (useful for isolated testing)
@@ -129,7 +129,7 @@ pub(crate) fn run(action: Action, args: &Args) -> Result<(), CallusError> {
         init::configure_tool(tool, &base, args.project, args.dry_run, is_uninstall)?;
     }
 
-    if action == Action::Install && !args.no_packs {
+    if action == Action::Install && args.packs && !args.no_packs {
         offer_starter_packs(args)?;
     }
 
@@ -189,7 +189,9 @@ fn is_tool_detected(tool: &str, base: &Path) -> bool {
     let dir_present = match tool {
         "claude" => base.join(".claude").exists(),
         "codex" => base.join(".codex").exists(),
-        "antigravity" => base.join(".gemini").exists(),
+        "antigravity" => {
+            base.join(".gemini").exists() || !init::discover_t3_antigravity_dirs(base).is_empty()
+        }
         "opencode" => base.join(".config").join("opencode").exists(),
         _ => false,
     };

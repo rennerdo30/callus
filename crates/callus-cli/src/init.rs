@@ -35,6 +35,8 @@ pub(crate) struct Args {
     home: Option<PathBuf>,
 }
 
+const CALLUS_SKILL_MD: &str = include_str!("../../../skills/callus/SKILL.md");
+
 const OPENCODE_PLUGIN_TS: &str = r#"// Managed by Callus (`callus init --opencode`). Safe to remove via `--uninstall`.
 import { spawnSync } from "node:child_process";
 
@@ -92,7 +94,10 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         ),
         (
             "antigravity",
-            args.antigravity || (!any_explicit && base.join(".gemini").exists()),
+            args.antigravity
+                || (!any_explicit
+                    && (base.join(".gemini").exists()
+                        || !discover_t3_antigravity_dirs(&base).is_empty())),
         ),
         (
             "opencode",
@@ -166,25 +171,44 @@ pub(crate) fn describe_tool_plan(
         }
         "codex" => {
             let cfg = base.join(".codex").join("config.toml");
-            vec![format!(
+            let mut lines = vec![format!(
                 "{verb} {} (features.hooks, PreToolUse/PostToolUse hooks, mcp_servers.callus)",
                 cfg.display()
-            )]
+            )];
+            if !project {
+                let skill = base
+                    .join(".agents")
+                    .join("skills")
+                    .join("callus")
+                    .join("SKILL.md");
+                lines.push(if uninstall {
+                    format!("remove {}", skill.display())
+                } else {
+                    format!("install skill {}", skill.display())
+                });
+            }
+            lines
         }
         "antigravity" => {
-            let hooks = if project {
-                base.join(".agents").join("hooks.json")
-            } else {
-                base.join(".gemini").join("config").join("hooks.json")
-            };
-            let mcp = base.join(".gemini").join("config").join("mcp_config.json");
-            vec![
-                format!(
+            if project {
+                vec![format!(
                     "{verb} {} (PreToolUse, PostToolUse, Stop hooks)",
-                    hooks.display()
-                ),
-                format!("{verb} {} (mcpServers.callus)", mcp.display()),
-            ]
+                    base.join(".agents").join("hooks.json").display()
+                )]
+            } else {
+                let mut lines = Vec::new();
+                for dir in discover_antigravity_plugin_dirs(base) {
+                    lines.push(if uninstall {
+                        format!("remove owned Antigravity plugin {}", dir.display())
+                    } else {
+                        format!(
+                            "install Antigravity plugin {} (plugin.json, mcp_config.json, hooks.json, SKILL.md)",
+                            dir.display()
+                        )
+                    });
+                }
+                lines
+            }
         }
         "opencode" => {
             let dir = if project {
@@ -194,14 +218,27 @@ pub(crate) fn describe_tool_plan(
             };
             let plugin = dir.join("plugins").join("callus.ts");
             let cfg = dir.join("opencode.json");
-            vec![
+            let mut lines = vec![
                 if uninstall {
                     format!("remove {}", plugin.display())
                 } else {
                     format!("write OpenCode plugin {}", plugin.display())
                 },
                 format!("{verb} {} (mcp.callus + plugin entry)", cfg.display()),
-            ]
+            ];
+            if !project {
+                let skill = base
+                    .join(".agents")
+                    .join("skills")
+                    .join("callus")
+                    .join("SKILL.md");
+                lines.push(if uninstall {
+                    format!("remove {}", skill.display())
+                } else {
+                    format!("install skill {}", skill.display())
+                });
+            }
+            lines
         }
         _ => Vec::new(),
     }
@@ -310,6 +347,9 @@ fn configure_codex(
 
     let rendered = doc.to_string();
     write_text_if_changed(&config_path, &rendered, dry_run)?;
+    if !project {
+        sync_agents_skill(base, dry_run, uninstall)?;
+    }
     if project && !uninstall {
         println!(
             "Note: approve project hooks in Codex CLI with `codex /hooks` for {}.",
@@ -319,45 +359,169 @@ fn configure_codex(
     Ok(())
 }
 
+/// Discovers initialized T3 Code Antigravity profile plugin folders under
+/// `<home>/.t3/userdata/providers/antigravity/*/config/plugins/callus`.
+pub(crate) fn discover_t3_antigravity_dirs(base: &Path) -> Vec<PathBuf> {
+    let root = base
+        .join(".t3")
+        .join("userdata")
+        .join("providers")
+        .join("antigravity");
+    let Ok(entries) = std::fs::read_dir(&root) else {
+        return Vec::new();
+    };
+    let mut dirs = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() && path.join("config").is_dir() {
+            dirs.push(path.join("config").join("plugins").join("callus"));
+        }
+    }
+    dirs.sort();
+    dirs
+}
+
+fn discover_antigravity_plugin_dirs(base: &Path) -> Vec<PathBuf> {
+    let mut dirs = vec![
+        base.join(".gemini")
+            .join("config")
+            .join("plugins")
+            .join("callus"),
+    ];
+    dirs.extend(discover_t3_antigravity_dirs(base));
+    dirs
+}
+
 fn configure_antigravity(
     base: &Path,
     project: bool,
     dry_run: bool,
     uninstall: bool,
 ) -> Result<(), CallusError> {
-    let hooks_path = if project {
-        base.join(".agents").join("hooks.json")
-    } else {
-        base.join(".gemini").join("config").join("hooks.json")
-    };
-    let mut hooks_doc = read_json_object(&hooks_path)?;
-    if uninstall {
-        hooks_doc.remove("callus");
-    } else {
-        hooks_doc.insert(
-            "callus".to_owned(),
-            json!({
-                "PreToolUse": [{ "matcher": "*", "command": "callus hook --cli antigravity --event pre" }],
-                "PostToolUse": [{ "matcher": "*", "command": "callus hook --cli antigravity --event post" }],
-                "Stop": [{ "command": "callus hook --cli antigravity --event stop" }]
-            }),
-        );
+    if project {
+        let hooks_path = base.join(".agents").join("hooks.json");
+        let mut hooks_doc = read_json_object(&hooks_path)?;
+        if uninstall {
+            hooks_doc.remove("callus");
+        } else {
+            hooks_doc.insert("callus".to_owned(), antigravity_hooks_value());
+        }
+        write_json_if_changed(&hooks_path, &Value::Object(hooks_doc), dry_run)?;
+        return Ok(());
     }
-    write_json_if_changed(&hooks_path, &Value::Object(hooks_doc), dry_run)?;
 
-    let mcp_path = base.join(".gemini").join("config").join("mcp_config.json");
-    let mut mcp_doc = read_json_object(&mcp_path)?;
-    let servers = ensure_object(&mut mcp_doc, "mcpServers");
-    if uninstall {
-        servers.remove("callus");
-    } else {
-        servers.insert(
-            "callus".to_owned(),
-            json!({ "command": "callus", "args": ["mcp"] }),
-        );
+    // Clean up legacy v0.1.0 top-level entries in ~/.gemini/config/{hooks,mcp_config}.json if present.
+    cleanup_legacy_antigravity_top_level(base, dry_run)?;
+
+    let plugin_json = json!({
+        "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+        "name": "callus",
+        "version": env!("CARGO_PKG_VERSION"),
+        "description": "Callus mistake memory, PreToolUse guards, and MCP tools"
+    });
+    let mcp_json = json!({
+        "mcpServers": {
+            "callus": {
+                "command": "callus",
+                "args": ["mcp"]
+            }
+        }
+    });
+    let hooks_json = json!({
+        "callus": antigravity_hooks_value()
+    });
+    let marker_json = json!({
+        "managed_by": "callus-installer",
+        "tool": "antigravity",
+        "version": env!("CARGO_PKG_VERSION")
+    });
+
+    for plugin_dir in discover_antigravity_plugin_dirs(base) {
+        let marker_path = plugin_dir.join(".callus-plugin.json");
+        if uninstall {
+            if marker_path.is_file() {
+                if dry_run {
+                    println!("[dry-run] would remove {}", plugin_dir.display());
+                } else {
+                    std::fs::remove_dir_all(&plugin_dir)
+                        .map_err(io_err(format!("cannot remove {}", plugin_dir.display())))?;
+                    println!("removed {}", plugin_dir.display());
+                }
+            }
+            continue;
+        }
+
+        write_json_if_changed(&plugin_dir.join("plugin.json"), &plugin_json, dry_run)?;
+        write_json_if_changed(&plugin_dir.join("mcp_config.json"), &mcp_json, dry_run)?;
+        write_json_if_changed(&plugin_dir.join("hooks.json"), &hooks_json, dry_run)?;
+        write_text_if_changed(
+            &plugin_dir.join("skills").join("callus").join("SKILL.md"),
+            CALLUS_SKILL_MD,
+            dry_run,
+        )?;
+        write_json_if_changed(&marker_path, &marker_json, dry_run)?;
     }
-    write_json_if_changed(&mcp_path, &Value::Object(mcp_doc), dry_run)?;
     Ok(())
+}
+
+fn antigravity_hooks_value() -> Value {
+    json!({
+        "PreToolUse": [{
+            "matcher": "*",
+            "type": "command",
+            "command": "callus hook --cli antigravity --event pre",
+            "timeout": 10
+        }],
+        "PostToolUse": [{
+            "matcher": "*",
+            "type": "command",
+            "command": "callus hook --cli antigravity --event post",
+            "timeout": 10
+        }],
+        "Stop": [{
+            "type": "command",
+            "command": "callus hook --cli antigravity --event stop",
+            "timeout": 10
+        }]
+    })
+}
+
+fn cleanup_legacy_antigravity_top_level(base: &Path, dry_run: bool) -> Result<(), CallusError> {
+    let legacy_hooks = base.join(".gemini").join("config").join("hooks.json");
+    if legacy_hooks.is_file() {
+        let mut doc = read_json_object(&legacy_hooks)?;
+        if doc.remove("callus").is_some() {
+            write_json_if_changed(&legacy_hooks, &Value::Object(doc), dry_run)?;
+        }
+    }
+    let legacy_mcp = base.join(".gemini").join("config").join("mcp_config.json");
+    if legacy_mcp.is_file() {
+        let mut doc = read_json_object(&legacy_mcp)?;
+        if let Some(servers) = doc.get_mut("mcpServers").and_then(Value::as_object_mut)
+            && servers.remove("callus").is_some()
+        {
+            write_json_if_changed(&legacy_mcp, &Value::Object(doc), dry_run)?;
+        }
+    }
+    Ok(())
+}
+
+fn sync_agents_skill(base: &Path, dry_run: bool, uninstall: bool) -> Result<(), CallusError> {
+    let skill_dir = base.join(".agents").join("skills").join("callus");
+    let skill_file = skill_dir.join("SKILL.md");
+    if uninstall {
+        if skill_file.is_file() {
+            if dry_run {
+                println!("[dry-run] would remove {}", skill_file.display());
+            } else {
+                let _ = std::fs::remove_file(&skill_file);
+                let _ = std::fs::remove_dir(&skill_dir);
+                println!("removed {}", skill_file.display());
+            }
+        }
+        return Ok(());
+    }
+    write_text_if_changed(&skill_file, CALLUS_SKILL_MD, dry_run)
 }
 
 fn configure_opencode(
@@ -395,7 +559,7 @@ fn configure_opencode(
     } else {
         mcp.insert(
             "callus".to_owned(),
-            json!({ "type": "local", "command": ["callus", "mcp"] }),
+            json!({ "type": "local", "command": ["callus", "mcp"], "enabled": true }),
         );
     }
 
@@ -410,6 +574,9 @@ fn configure_opencode(
         }
     }
     write_json_if_changed(&opencode_json, &Value::Object(doc), dry_run)?;
+    if !project {
+        sync_agents_skill(base, dry_run, uninstall)?;
+    }
     Ok(())
 }
 
@@ -448,15 +615,24 @@ fn json_entry_mentions_callus(item: &Value, cmd: &str) -> bool {
         })
 }
 
+fn codex_table_mentions_callus(tbl: &Table, cmd: &str) -> bool {
+    if tbl.get("command").and_then(Item::as_str) == Some(cmd) {
+        return true;
+    }
+    tbl.get("hooks")
+        .and_then(Item::as_array_of_tables)
+        .is_some_and(|nested| {
+            nested
+                .iter()
+                .any(|h| h.get("command").and_then(Item::as_str) == Some(cmd))
+        })
+}
+
 fn update_codex_hook_array(hooks_tbl: &mut Table, event_name: &str, cmd: &str, uninstall: bool) {
     let mut kept = ArrayOfTables::new();
     if let Some(existing) = hooks_tbl.get(event_name).and_then(Item::as_array_of_tables) {
         for tbl in existing {
-            let is_callus = tbl
-                .get("command")
-                .and_then(Item::as_str)
-                .is_some_and(|c| c == cmd);
-            if !is_callus {
+            if !codex_table_mentions_callus(tbl, cmd) {
                 kept.push(tbl.clone());
             }
         }
@@ -464,7 +640,13 @@ fn update_codex_hook_array(hooks_tbl: &mut Table, event_name: &str, cmd: &str, u
     if !uninstall {
         let mut entry = Table::new();
         entry["matcher"] = value("*");
-        entry["command"] = value(cmd);
+        let mut inner = ArrayOfTables::new();
+        let mut hook_cmd = Table::new();
+        hook_cmd["type"] = value("command");
+        hook_cmd["command"] = value(cmd);
+        hook_cmd["timeout"] = value(10);
+        inner.push(hook_cmd);
+        entry["hooks"] = Item::ArrayOfTables(inner);
         kept.push(entry);
     }
     if kept.is_empty() {

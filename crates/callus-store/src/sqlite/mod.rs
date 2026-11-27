@@ -281,7 +281,7 @@ impl KnowledgeStore for SqliteStore {
             let stored = if let Some(mut cur) = existing {
                 cur.occurrence_count = cur
                     .occurrence_count
-                    .saturating_add(pattern.occurrence_count.max(1));
+                    .saturating_add(pattern.occurrence_count);
                 if !pattern.title.is_empty() {
                     cur.title = pattern.title;
                 }
@@ -314,7 +314,7 @@ impl KnowledgeStore for SqliteStore {
                         pattern.tool_name,
                         pattern.scope.as_str(),
                         pattern.repo_hash,
-                        u64_to_i64(pattern.occurrence_count.max(1), "occurrence_count")?,
+                        u64_to_i64(pattern.occurrence_count, "occurrence_count")?,
                         pattern.first_seen_at,
                         pattern.last_seen_at,
                         pattern.embedding_status.as_str(),

@@ -75,7 +75,8 @@ fn install_update_uninstall_respects_dry_run_non_tty_safety_and_preserves_user_c
     assert!(non_tty_text.contains("no terminal to ask on: no"));
     assert!(!home.join(".codex").join("config.toml").exists());
 
-    // 4. `callus install ... --yes --packs` installs all 4 CLIs + starter packs.
+    // 4. Default `callus install ... --yes` installs all 4 CLIs and starts with an empty DB
+    //    (does NOT seed starter packs unless `--packs` is explicitly passed).
     let install_out = callus()
         .args([
             "install",
@@ -84,7 +85,6 @@ fn install_update_uninstall_respects_dry_run_non_tty_safety_and_preserves_user_c
             "opencode",
             "antigravity",
             "--yes",
-            "--packs",
             "--home",
         ])
         .arg(home)
@@ -97,6 +97,10 @@ fn install_update_uninstall_respects_dry_run_non_tty_safety_and_preserves_user_c
         .clone();
     let install_text = String::from_utf8(install_out).unwrap();
     assert!(install_text.contains("callus ui --port 8080"));
+    assert!(
+        !db.exists(),
+        "default install must not pre-populate the database with starter packs"
+    );
     assert!(home.join(".codex").join("config.toml").exists());
     assert!(
         home.join(".config")
@@ -105,12 +109,13 @@ fn install_update_uninstall_respects_dry_run_non_tty_safety_and_preserves_user_c
             .join("callus.ts")
             .exists()
     );
-    assert!(
-        home.join(".gemini")
-            .join("config")
-            .join("hooks.json")
-            .exists()
-    );
+    let agy_plugin = home
+        .join(".gemini")
+        .join("config")
+        .join("plugins")
+        .join("callus");
+    assert!(agy_plugin.join("hooks.json").is_file());
+    assert!(agy_plugin.join("plugin.json").is_file());
 
     // Existing Claude user hook survived alongside Callus hook.
     let settings: Value =
@@ -154,4 +159,5 @@ fn install_update_uninstall_respects_dry_run_non_tty_safety_and_preserves_user_c
         .unwrap();
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0]["hooks"][0]["command"], "keep-my-hook");
+    assert!(!agy_plugin.exists());
 }

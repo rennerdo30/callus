@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh -s -- update
 #   curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh -s -- uninstall
-#       (arguments: install, update or uninstall, then claude codex opencode antigravity, --yes, --dry-run, --no-packs)
+#       (arguments: install, update or uninstall, then claude codex opencode antigravity, --yes, --dry-run, --packs)
 #
 # Zero Python or Node.js required: downloads the single prebuilt `callus` release binary
 # (or uses $CALLUS_ARCHIVE / $CALLUS_BIN for offline or pre-release testing), installs it into

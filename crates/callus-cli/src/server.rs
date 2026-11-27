@@ -262,8 +262,8 @@ async fn overview(State(state): State<AppState>) -> Response {
     for edge in &edges {
         if edge.edge_type == EdgeType::ResolvedBy {
             retries_saved = retries_saved.saturating_add(edge.worked_count);
-        } else if edge.edge_type == EdgeType::OccursIn {
-            *context_hits.entry(edge.dst_id.clone()).or_insert(0) += edge.hit_count.max(1);
+        } else if edge.edge_type == EdgeType::OccursIn && edge.hit_count > 0 {
+            *context_hits.entry(edge.dst_id.clone()).or_insert(0) += edge.hit_count;
         }
     }
 
@@ -302,7 +302,13 @@ async fn overview(State(state): State<AppState>) -> Response {
     }
 
     let total_occurrences: u64 = patterns.iter().map(|p| p.occurrence_count).sum();
-    let hotspots: Vec<_> = patterns.iter().take(10).cloned().collect();
+    // Only show real failures that have actually occurred in Hotspots (never unhit 0x imported packs).
+    let hotspots: Vec<_> = patterns
+        .iter()
+        .filter(|p| p.occurrence_count > 0)
+        .take(10)
+        .cloned()
+        .collect();
 
     Json(json!({
         "pattern_count": patterns.len(),

@@ -44,6 +44,29 @@ fn community_packs_import_activate_guards_and_export_cleanly() {
             .success();
     }
 
+    // Imported pack patterns start at 0 real hits and 0 fabricated retries saved.
+    let store = SqliteStore::open(&db, callus_core::DEFAULT_EMBEDDING_DIMS).unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    let (patterns, edges) = rt.block_on(async {
+        let p = store.list_patterns(None, None, 100).await.unwrap();
+        let e = store.list_edges_updated_since("", 500).await.unwrap();
+        (p, e)
+    });
+    assert_ne!(patterns.len(), 0);
+    assert!(
+        patterns.iter().all(|p| p.occurrence_count == 0),
+        "imported packs must not fabricate failure occurrences"
+    );
+    assert!(
+        edges
+            .iter()
+            .all(|e| e.worked_count == 0 && e.hit_count == 0),
+        "imported packs must not fabricate retries saved or environment hits"
+    );
+    drop(store);
+
     // `callus pack list` prints imported rules.
     let list_out = Command::new(&bin)
         .args(["pack", "list", "--db"])

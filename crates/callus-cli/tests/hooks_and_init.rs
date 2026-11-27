@@ -230,6 +230,52 @@ fn init_is_idempotent_creates_backups_preserves_user_hooks_and_uninstalls() {
     )
     .unwrap();
 
+    // Pre-populate a legacy v0.1.0 flat Codex hook alongside a valid user hook,
+    // legacy top-level Antigravity configs, and a T3 Code Antigravity profile.
+    let codex_dir = home.join(".codex");
+    std::fs::create_dir_all(&codex_dir).unwrap();
+    let codex_cfg = codex_dir.join("config.toml");
+    std::fs::write(
+        &codex_cfg,
+        r#"[features]
+hooks = true
+
+[[hooks.PreToolUse]]
+matcher = "*"
+command = "callus hook --cli codex --event pre"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "my-codex-hook"
+timeout = 5
+"#,
+    )
+    .unwrap();
+
+    let gemini_cfg = home.join(".gemini").join("config");
+    std::fs::create_dir_all(&gemini_cfg).unwrap();
+    std::fs::write(
+        gemini_cfg.join("hooks.json"),
+        r#"{"callus":{"PreToolUse":[]},"other":{"PreToolUse":[]}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        gemini_cfg.join("mcp_config.json"),
+        r#"{"mcpServers":{"callus":{"command":"callus","args":["mcp"]},"other":{"command":"other"}}}"#,
+    )
+    .unwrap();
+    let t3_profile_cfg = home
+        .join(".t3")
+        .join("userdata")
+        .join("providers")
+        .join("antigravity")
+        .join("profile-abc")
+        .join("config");
+    std::fs::create_dir_all(&t3_profile_cfg).unwrap();
+
     // 1. Dry-run writes nothing new.
     callus()
         .args([
@@ -244,7 +290,7 @@ fn init_is_idempotent_creates_backups_preserves_user_hooks_and_uninstalls() {
         .arg(home)
         .assert()
         .success();
-    assert!(!home.join(".codex").join("config.toml").exists());
+    assert!(!gemini_cfg.join("plugins").join("callus").exists());
 
     // 2. Full install across all 4 CLIs.
     callus()
@@ -276,24 +322,64 @@ fn init_is_idempotent_creates_backups_preserves_user_hooks_and_uninstalls() {
     let pre_hooks = settings_val["hooks"]["PreToolUse"].as_array().unwrap();
     assert_eq!(pre_hooks.len(), 2);
 
-    // Verify Codex TOML, Antigravity hooks/mcp, and OpenCode plugin + config exist.
-    let codex_toml = std::fs::read_to_string(home.join(".codex").join("config.toml")).unwrap();
+    // Verify Codex TOML migrated to nested [[hooks.PreToolUse.hooks]] and preserved user hook.
+    let codex_toml = std::fs::read_to_string(&codex_cfg).unwrap();
     assert!(codex_toml.contains("hooks = true"));
-    assert!(codex_toml.contains("callus hook --cli codex --event pre"));
+    assert!(codex_toml.contains("[[hooks.PreToolUse.hooks]]"));
+    assert!(codex_toml.contains("[[hooks.PostToolUse.hooks]]"));
+    assert!(codex_toml.contains("my-codex-hook"));
+    assert_eq!(
+        codex_toml
+            .matches("callus hook --cli codex --event pre")
+            .count(),
+        1
+    );
     assert!(codex_toml.contains("[mcp_servers.callus]"));
+    assert!(
+        home.join(".agents")
+            .join("skills")
+            .join("callus")
+            .join("SKILL.md")
+            .is_file()
+    );
 
-    let agy_hooks: Value = serde_json::from_str(
-        &std::fs::read_to_string(home.join(".gemini").join("config").join("hooks.json")).unwrap(),
-    )
-    .unwrap();
-    assert!(agy_hooks.get("callus").is_some());
+    // Verify Antigravity installed native plugins in both ~/.gemini and T3 Code profile,
+    // and cleaned up legacy v0.1.0 top-level entries while preserving other tools.
+    let agy_plugin = gemini_cfg.join("plugins").join("callus");
+    let t3_plugin = t3_profile_cfg.join("plugins").join("callus");
+    for plugin_dir in [&agy_plugin, &t3_plugin] {
+        assert!(plugin_dir.join("plugin.json").is_file());
+        assert!(plugin_dir.join("mcp_config.json").is_file());
+        assert!(
+            plugin_dir
+                .join("skills")
+                .join("callus")
+                .join("SKILL.md")
+                .is_file()
+        );
+        let hooks: Value =
+            serde_json::from_str(&std::fs::read_to_string(plugin_dir.join("hooks.json")).unwrap())
+                .unwrap();
+        assert!(hooks.get("callus").is_some());
+    }
+    let legacy_hooks: Value =
+        serde_json::from_str(&std::fs::read_to_string(gemini_cfg.join("hooks.json")).unwrap())
+            .unwrap();
+    assert!(legacy_hooks.get("callus").is_none());
+    assert!(legacy_hooks.get("other").is_some());
+    let legacy_mcp: Value =
+        serde_json::from_str(&std::fs::read_to_string(gemini_cfg.join("mcp_config.json")).unwrap())
+            .unwrap();
+    assert!(legacy_mcp["mcpServers"].get("callus").is_none());
+    assert!(legacy_mcp["mcpServers"].get("other").is_some());
 
-    let oc_plugin = home
-        .join(".config")
-        .join("opencode")
-        .join("plugins")
-        .join("callus.ts");
+    let oc_dir = home.join(".config").join("opencode");
+    let oc_plugin = oc_dir.join("plugins").join("callus.ts");
     assert!(oc_plugin.exists());
+    let oc_json: Value =
+        serde_json::from_str(&std::fs::read_to_string(oc_dir.join("opencode.json")).unwrap())
+            .unwrap();
+    assert_eq!(oc_json["mcp"]["callus"]["enabled"], true);
 
     // 3. Running init a second time is idempotent (no duplicate entries!).
     callus()
@@ -317,8 +403,15 @@ fn init_is_idempotent_creates_backups_preserves_user_hooks_and_uninstalls() {
             .len(),
         2
     );
+    let codex_toml2 = std::fs::read_to_string(&codex_cfg).unwrap();
+    assert_eq!(
+        codex_toml2
+            .matches("callus hook --cli codex --event pre")
+            .count(),
+        1
+    );
 
-    // 4. Uninstall removes Callus cleanly while preserving the user's hook.
+    // 4. Uninstall removes Callus cleanly while preserving the user's hooks.
     callus()
         .args([
             "init",
@@ -337,5 +430,10 @@ fn init_is_idempotent_creates_backups_preserves_user_hooks_and_uninstalls() {
     let remaining = settings_after["hooks"]["PreToolUse"].as_array().unwrap();
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0]["hooks"][0]["command"], "my-user-hook");
+    let codex_after = std::fs::read_to_string(&codex_cfg).unwrap();
+    assert!(!codex_after.contains("callus hook"));
+    assert!(codex_after.contains("my-codex-hook"));
+    assert!(!agy_plugin.exists());
+    assert!(!t3_plugin.exists());
     assert!(!oc_plugin.exists());
 }

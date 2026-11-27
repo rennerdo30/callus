@@ -38,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh |
 curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh -s -- uninstall
 ```
 
-Every action supports `--dry-run`, `--yes`, `--no-packs`, and explicit tool selection (e.g., `callus install claude codex --yes`). Every edited config file gets a timestamped `.callus-*.bak` backup first.
+Every action supports `--dry-run`, `--yes`, `--packs` (opt-in starter rules; fresh installs start with an empty database), and explicit tool selection (e.g., `callus install claude codex --yes`). Every edited config file gets a timestamped `.callus-*.bak` backup first.
 
 ### Build from Source
 
