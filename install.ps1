@@ -157,7 +157,21 @@
         }
 
         New-Item -ItemType Directory -Path $appDir -Force | Out-Null
-        Copy-Item -Path $sourceBin -Destination $installedBin -Force
+        Get-ChildItem -Path $appDir -Filter "callus.exe.old.*" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        if (Test-Path $installedBin) {
+            try {
+                Copy-Item -Path $sourceBin -Destination $installedBin -Force -ErrorAction Stop
+            } catch {
+                # Windows locks running .exe files (e.g. an active `callus mcp` server),
+                # but allows renaming them aside so the new binary can take its place cleanly.
+                $staleBin = Join-Path $appDir ("callus.exe.old." + [Guid]::NewGuid().ToString("N"))
+                Move-Item -Path $installedBin -Destination $staleBin -Force
+                Copy-Item -Path $sourceBin -Destination $installedBin -Force
+                Remove-Item -Path $staleBin -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Copy-Item -Path $sourceBin -Destination $installedBin -Force
+        }
         if ($sourcePacks) {
             $destPacks = Join-Path $appDir "packs"
             if (Test-Path $destPacks) { Remove-Item -Recurse -Force $destPacks }

@@ -142,8 +142,14 @@ main() {
     fi
 
     mkdir -p "$app_dir" "$bin_dir"
+    # Replace via a fresh inode so macOS ARM64 AMFI never kills an overwritten binary
+    # and running processes on Unix keep their unlinked executable intact.
+    rm -f "$installed_bin"
     cp "$source_bin" "$installed_bin"
     chmod +x "$installed_bin"
+    if [ "$os" = "Darwin" ] && command -v codesign >/dev/null 2>&1; then
+        codesign --force --sign - "$installed_bin" >/dev/null 2>&1 || true
+    fi
     if [ -n "$source_packs" ]; then
         rm -rf "$app_dir/packs"
         cp -R "$source_packs" "$app_dir/packs"
