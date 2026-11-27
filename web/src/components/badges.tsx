@@ -51,6 +51,46 @@ export function FixTypeBadge({ fixType }: { fixType: FixType }) {
   );
 }
 
+export function EmbeddingBadge({
+  status,
+  enabled = true,
+}: {
+  status: "pending" | "ready" | "skipped";
+  enabled?: boolean;
+}) {
+  if (status === "ready") {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-1.5 rounded bg-emerald-500/10 px-2 py-0.5 font-mono text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/25"
+        title="Vector embedding stored and active in semantic search"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        embedded
+      </span>
+    );
+  }
+  if (status === "pending" && enabled) {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center gap-1.5 rounded bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-medium text-amber-400 ring-1 ring-amber-500/25"
+        title="Queued for background vector embedding"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        pending
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 rounded bg-elevated px-2 py-0.5 font-mono text-xs text-muted ring-1 ring-line"
+      title="Indexed via BM25 + Knowledge Graph"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+      BM25
+    </span>
+  );
+}
+
 export function formatShortTime(iso: string): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return iso.slice(0, 10);

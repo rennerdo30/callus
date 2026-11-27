@@ -8,7 +8,22 @@ import {
   Sparkles,
 } from "lucide-react";
 import { api, type OverviewResponse } from "../api";
-import { ScopeBadge, formatShortTime } from "../components/badges";
+import {
+  EmbeddingBadge,
+  ScopeBadge,
+  formatShortTime,
+} from "../components/badges";
+
+function hasDistinctTemplate(title: string, errorTemplate: string): boolean {
+  const t = title.trim();
+  const e = errorTemplate.trim();
+  if (!e || e === t) return false;
+  // Titles longer than 120 chars are truncated with "..."; don't repeat the same prefix on line 2.
+  if (t.endsWith("...") && t.length > 10 && e.startsWith(t.slice(0, -3))) {
+    return false;
+  }
+  return true;
+}
 
 interface OverviewViewProps {
   data: OverviewResponse | undefined;
@@ -208,13 +223,17 @@ export function OverviewView({
                         {pat.tool_name}
                       </span>
                     </div>
-                    <p className="truncate font-mono text-[13px] text-muted">
-                      {pat.error_template !== pat.title
-                        ? pat.error_template
-                        : data.embedding_enabled
-                          ? `sig:${pat.signature_hash.slice(0, 12)} · ${pat.embedding_status} embedding`
-                          : `sig:${pat.signature_hash.slice(0, 12)} · BM25 + Graph`}
-                    </p>
+                    <div className="flex min-w-0 items-center gap-2 font-mono text-xs text-muted">
+                      <EmbeddingBadge
+                        status={pat.embedding_status}
+                        enabled={data.embedding_enabled}
+                      />
+                      <span className="min-w-0 truncate">
+                        {hasDistinctTemplate(pat.title, pat.error_template)
+                          ? pat.error_template
+                          : `sig:${pat.signature_hash.slice(0, 12)}`}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 pt-0.5">
                     <div className="text-right">

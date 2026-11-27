@@ -12,7 +12,7 @@
       "name": "callus",
       "source": "./",
       "description": "Automatic failure -> recovery learning, PreToolUse guards, MCP tools, and embedded React 19 Web UI for coding CLIs.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "rennerdo30",
         "url": "https://github.com/rennerdo30"

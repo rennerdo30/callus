@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Search, XCircle } from "lucide-react";
 import { api, type FixStatus, type Scope } from "../api";
 import {
+  EmbeddingBadge,
   FixTypeBadge,
   ScopeBadge,
   StatusBadge,
@@ -272,6 +273,9 @@ export function PatternsView({
                         {detailQuery.data.pattern.title}
                       </h2>
                       <ScopeBadge scope={detailQuery.data.pattern.scope} />
+                      <EmbeddingBadge
+                        status={detailQuery.data.pattern.embedding_status}
+                      />
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-3 font-mono text-xs text-muted">
                       <span>tool: {detailQuery.data.pattern.tool_name}</span>
