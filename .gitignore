@@ -1,0 +1,29 @@
+# Rust build outputs
+/target/
+**/*.rs.bk
+
+# Machine-local cargo config (e.g. sccache)
+.cargo/config.toml
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Local SQLite databases & runtime state
+*.db
+*.db-wal
+*.db-shm
+/data/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local development desk / IDE files
+.pair-desk.json
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
