@@ -24,6 +24,7 @@ sha2 = "0.11.2"
 sqlite-vec = "0.1.9"
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+toml_edit = "0.25.21"
 # Test-only
 assert_cmd = "2.2.2"
 tempfile = "3.27.0"

@@ -1,5 +1,8 @@
 //! The `callus` binary.
 
+mod adapters;
+mod hook;
+mod init;
 mod scrub_test;
 
 use std::process::ExitCode;
@@ -17,17 +20,10 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Install hooks/plugins and MCP config for the installed CLIs (planned)
-    Init(InitArgs),
-    /// Run one hook event from stdin (planned)
-    Hook {
-        /// Calling CLI
-        #[arg(long)]
-        cli: Option<String>,
-        /// pre, post, failure or stop
-        #[arg(long)]
-        event: Option<String>,
-    },
+    /// Install hooks/plugins and MCP config for supported CLIs
+    Init(init::Args),
+    /// Run one hook event from stdin (fail-open, <10ms local hot path)
+    Hook(hook::Args),
     /// Run the MCP server over stdio (planned)
     Mcp,
     /// Run the HTTP API, MCP endpoint, sync and web UI (planned)
@@ -43,25 +39,6 @@ enum Command {
     ScrubTest(scrub_test::Args),
 }
 
-#[derive(Debug, clap::Args)]
-#[expect(clippy::struct_excessive_bools, reason = "independent CLI flags")]
-struct InitArgs {
-    #[arg(long)]
-    claude: bool,
-    #[arg(long)]
-    codex: bool,
-    #[arg(long)]
-    antigravity: bool,
-    #[arg(long)]
-    opencode: bool,
-    /// Show the changes without applying them
-    #[arg(long)]
-    dry_run: bool,
-    /// Remove everything Callus installed
-    #[arg(long)]
-    uninstall: bool,
-}
-
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ExportFormat {
     AgentsMd,
@@ -73,12 +50,11 @@ enum ExportFormat {
 fn run(command: Command) -> Result<(), CallusError> {
     let planned = match command {
         Command::ScrubTest(args) => return scrub_test::run(args),
-        // Hooks fail open: never disturb the calling agent.
-        Command::Hook { .. } => {
-            eprintln!("callus: {}", CallusError::NotImplemented("hook"));
+        Command::Init(args) => return init::run(args),
+        Command::Hook(args) => {
+            hook::run(args);
             return Ok(());
         }
-        Command::Init(_) => "init",
         Command::Mcp => "mcp",
         Command::Serve => "serve",
         Command::Sync => "sync",
