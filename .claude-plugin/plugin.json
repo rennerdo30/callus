@@ -1,7 +1,7 @@
 {
   "name": "callus",
   "displayName": "Callus — Agent Mistake Memory & Guards",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local-first self-learning mistake memory, PreToolUse guard, and rule compiler for Claude Code, Codex, Antigravity, and OpenCode. Captures tool failures and recoveries, injects sanitized hints on repeat errors, and exports budgeted AGENTS.md / CLAUDE.md diffs.",
   "author": {
     "name": "rennerdo30",

@@ -443,9 +443,27 @@ fn configure_antigravity(
                 if dry_run {
                     println!("[dry-run] would remove {}", plugin_dir.display());
                 } else {
-                    std::fs::remove_dir_all(&plugin_dir)
-                        .map_err(io_err(format!("cannot remove {}", plugin_dir.display())))?;
-                    println!("removed {}", plugin_dir.display());
+                    // Remove owned files first so hooks/MCP are disabled immediately even if a
+                    // running Windows session still holds an open handle on `plugin_dir`.
+                    for rel in [
+                        "hooks.json",
+                        "mcp_config.json",
+                        "plugin.json",
+                        "skills/callus/SKILL.md",
+                        ".callus-plugin.json",
+                    ] {
+                        let path = plugin_dir.join(rel);
+                        if path.is_file() {
+                            let _ = std::fs::remove_file(&path);
+                        }
+                    }
+                    match std::fs::remove_dir_all(&plugin_dir) {
+                        Ok(()) => println!("removed {}", plugin_dir.display()),
+                        Err(err) => println!(
+                            "removed Callus plugin files in {} (folder still in use: {err})",
+                            plugin_dir.display()
+                        ),
+                    }
                 }
             }
             continue;

@@ -151,6 +151,59 @@ fn codex_antigravity_and_opencode_adapters_classify_failures_and_guards() {
     let parsed: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(parsed["decision"], "deny");
 
+    // Antigravity PreToolUse on a safe command (with active guards in DB) MUST emit {"decision": "allow"}.
+    let agy_pre_ok = json!({
+        "conversationId": "conv-1",
+        "modelName": "gemini-4-neon",
+        "workspacePaths": ["/tmp/demo-repo"],
+        "toolCall": { "id": "toolu_ok", "name": "read_file", "args": { "Path": "README.md" } },
+        "stepIdx": 3
+    });
+    let out = callus()
+        .args(["hook", "--cli", "antigravity", "--event", "pre", "--db"])
+        .arg(&db)
+        .write_stdin(agy_pre_ok.to_string())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out).unwrap(),
+        json!({"decision": "allow"})
+    );
+
+    // Antigravity PreToolUse fast path (empty DB with no guards) & malformed stdin (fail-open)
+    // MUST also emit {"decision": "allow"} so normal tool calls are never blocked.
+    let empty_db = dir.path().join("empty.db");
+    let out = callus()
+        .args(["hook", "--cli", "antigravity", "--event", "pre", "--db"])
+        .arg(&empty_db)
+        .write_stdin(agy_pre_ok.to_string())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out).unwrap(),
+        json!({"decision": "allow"})
+    );
+
+    let out = callus()
+        .args(["hook", "--cli", "antigravity", "--event", "pre", "--db"])
+        .arg(&empty_db)
+        .write_stdin("{not valid json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out).unwrap(),
+        json!({"decision": "allow"})
+    );
+
     // Antigravity PostToolUse failure & Stop return valid `{}` JSON per hooks.md protojson contract.
     let agy_post = json!({
         "conversationId": "conv-1",

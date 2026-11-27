@@ -31,10 +31,34 @@ pub(crate) struct Args {
 
 /// Runs one hook invocation, always failing open (exit 0) so agents are never stalled.
 pub(crate) fn run(args: Args) {
-    if let Err(err) = run_inner(args)
-        && std::env::var_os("CALLUS_DEBUG").is_some()
-    {
-        eprintln!("callus hook warning (fail-open): {err}");
+    let cli = args.cli;
+    let event = args.event;
+    let output = match run_inner(args) {
+        Ok(Some(val)) => Some(val),
+        Ok(None) => default_hook_output(cli, event),
+        Err(err) => {
+            if std::env::var_os("CALLUS_DEBUG").is_some() {
+                eprintln!("callus hook warning (fail-open): {err}");
+            }
+            default_hook_output(cli, event)
+        }
+    };
+    if let Some(val) = output {
+        let _ = write_stdout_json(&val);
+    }
+}
+
+fn default_hook_output(cli: AdapterCli, event: HookEventArg) -> Option<Value> {
+    if cli != AdapterCli::Antigravity {
+        return None;
+    }
+    match event {
+        // Antigravity PreToolUse requires a `decision` field; empty/{} denies the tool call.
+        HookEventArg::Pre => Some(serde_json::json!({ "decision": "allow" })),
+        // Antigravity PostToolUse and Stop expect an empty JSON object `{}` when allowing.
+        HookEventArg::Post | HookEventArg::Failure | HookEventArg::Stop => {
+            Some(serde_json::json!({}))
+        }
     }
 }
 
@@ -61,7 +85,7 @@ pub(crate) fn configured_dims() -> usize {
         .unwrap_or(DEFAULT_EMBEDDING_DIMS)
 }
 
-fn run_inner(args: Args) -> Result<(), String> {
+fn run_inner(args: Args) -> Result<Option<Value>, String> {
     let mut raw = String::new();
     std::io::stdin()
         .read_to_string(&mut raw)
@@ -92,10 +116,7 @@ fn run_inner(args: Args) -> Result<(), String> {
         // Stop event: prune local short-retention episodes older than 7 days.
         let cutoff = iso_utc_days_ago(7);
         let _ = rt.block_on(store.prune_episodes_before(&cutoff));
-        if args.cli == AdapterCli::Antigravity {
-            write_stdout_json(&serde_json::json!({}))?;
-        }
-        return Ok(());
+        return Ok(None);
     };
 
     // Fast path for PreToolUse: if no deterministic guards are active for this repo,
@@ -105,10 +126,7 @@ fn run_inner(args: Args) -> Result<(), String> {
             .block_on(store.list_active_guards(event.repo_hash.as_deref()))
             .map_err(|e| format!("guard query failed: {e}"))?;
         if guards.is_empty() {
-            if args.cli == AdapterCli::Antigravity {
-                write_stdout_json(&serde_json::json!({}))?;
-            }
-            return Ok(());
+            return Ok(None);
         }
     }
 
@@ -136,12 +154,7 @@ fn run_inner(args: Args) -> Result<(), String> {
         .block_on(engine.ingest_event(&event, &scrubber, None))
         .map_err(|e| format!("ingest failed: {e}"))?;
 
-    if let Some(output) = format_hook_output(args.cli, &outcome) {
-        write_stdout_json(&output)?;
-    } else if args.cli == AdapterCli::Antigravity {
-        write_stdout_json(&serde_json::json!({}))?;
-    }
-    Ok(())
+    Ok(format_hook_output(args.cli, &outcome))
 }
 
 fn write_stdout_json(value: &Value) -> Result<(), String> {
