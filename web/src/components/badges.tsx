@@ -15,7 +15,7 @@ export function ScopeBadge({ scope }: { scope: Scope }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${styles[scope] ?? styles.personal}`}
+      className={`inline-flex items-center rounded px-2 py-0.5 font-mono text-xs font-medium ring-1 ${styles[scope] ?? styles.personal}`}
     >
       {labels[scope] ?? scope}
     </span>
@@ -31,7 +31,7 @@ export function StatusBadge({ status }: { status: FixStatus }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${styles[status]}`}
+      className={`inline-flex items-center rounded px-2 py-0.5 font-mono text-xs font-medium ring-1 ${styles[status]}`}
     >
       {status}
     </span>
@@ -45,7 +45,7 @@ export function FixTypeBadge({ fixType }: { fixType: FixType }) {
     agents_md_rule: "AGENTS.md rule",
   };
   return (
-    <span className="inline-flex items-center rounded bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-muted ring-1 ring-line">
+    <span className="inline-flex items-center rounded bg-elevated px-2 py-0.5 font-mono text-xs text-muted ring-1 ring-line">
       {labels[fixType] ?? fixType}
     </span>
   );

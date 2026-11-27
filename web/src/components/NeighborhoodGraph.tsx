@@ -36,20 +36,20 @@ export function NeighborhoodGraph({
     .slice(0, 6);
 
   const height = Math.max(
-    220,
-    Math.max(leftNodes.length, rightNodes.length, 1) * 52 + 44,
+    240,
+    Math.max(leftNodes.length, rightNodes.length, 1) * 60 + 52,
   );
   const centerX = 340;
   const centerY = height / 2;
 
   const yPos = (idx: number, count: number) => {
     if (count <= 1) return centerY;
-    const span = height - 76;
-    return 38 + (idx * span) / (count - 1);
+    const span = height - 88;
+    return 44 + (idx * span) / (count - 1);
   };
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <div className="overflow-hidden rounded-lg border bg-canvas">
         <svg
           viewBox={`0 0 680 ${height}`}
@@ -61,7 +61,7 @@ export function NeighborhoodGraph({
           {leftNodes.map((item, idx) => {
             const ny = yPos(idx, leftNodes.length);
             const active = selected?.node.id === item.node.id;
-            const lx = 212;
+            const lx = 216;
             const ly = (ny + centerY) / 2;
             const label =
               item.edge.hit_count > 0
@@ -70,25 +70,25 @@ export function NeighborhoodGraph({
             return (
               <g key={`le-${item.node.id}`}>
                 <path
-                  d={`M 188 ${ny} C 228 ${ny}, 232 ${centerY}, 256 ${centerY}`}
+                  d={`M 190 ${ny} C 228 ${ny}, 232 ${centerY}, 252 ${centerY}`}
                   fill="none"
                   stroke={active ? "#38bdf8" : "#334155"}
-                  strokeWidth={active ? 2 : 1.3}
+                  strokeWidth={active ? 2 : 1.4}
                   strokeDasharray={item.hop === 2 ? "4 3" : undefined}
                 />
                 <rect
-                  x={lx - 13}
-                  y={ly - 7}
-                  width="26"
-                  height="14"
+                  x={lx - 15}
+                  y={ly - 8}
+                  width="30"
+                  height="16"
                   rx="4"
                   fill="#0b0e14"
                 />
                 <text
                   x={lx}
-                  y={ly + 3}
+                  y={ly + 3.5}
                   textAnchor="middle"
-                  className="fill-slate-300 font-mono text-[9px]"
+                  className="fill-slate-300 font-mono text-[10px]"
                 >
                   {label}
                 </text>
@@ -106,24 +106,24 @@ export function NeighborhoodGraph({
             return (
               <g key={`re-${item.node.id}`}>
                 <path
-                  d={`M 424 ${centerY} C 446 ${centerY}, 448 ${ny}, 492 ${ny}`}
+                  d={`M 428 ${centerY} C 448 ${centerY}, 450 ${ny}, 490 ${ny}`}
                   fill="none"
                   stroke={active ? "#10b981" : good ? "#10b98188" : "#f43f5e88"}
                   strokeWidth={active ? 2.2 : 1.5}
                 />
                 <rect
-                  x={rx - 22}
-                  y={ry - 7}
-                  width="44"
-                  height="14"
+                  x={rx - 25}
+                  y={ry - 8}
+                  width="50"
+                  height="16"
                   rx="4"
                   fill="#0b0e14"
                 />
                 <text
                   x={rx}
-                  y={ry + 3}
+                  y={ry + 3.5}
                   textAnchor="middle"
-                  className="fill-slate-200 font-mono text-[9px]"
+                  className="fill-slate-200 font-mono text-[10px]"
                 >
                   {item.edge.worked_count}✓/{item.edge.failed_count}✗
                 </text>
@@ -139,31 +139,40 @@ export function NeighborhoodGraph({
               <g
                 key={item.node.id}
                 onClick={() => setSelected(item)}
-                className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected(item);
+                  }
+                }}
+                className="group cursor-pointer outline-none"
               >
                 <rect
-                  x="14"
-                  y={ny - 18}
-                  width="174"
-                  height="36"
-                  rx="6"
+                  x="12"
+                  y={ny - 22}
+                  width="178"
+                  height="44"
+                  rx="7"
                   fill={active ? "#1e293b" : "#121722"}
                   stroke={active ? "#38bdf8" : "#243044"}
-                  strokeWidth={active ? 1.8 : 1}
+                  strokeWidth={active ? 2 : 1.2}
+                  className="transition-colors group-hover:fill-[#192234] group-hover:stroke-sky-400"
                 />
                 <text
-                  x="24"
-                  y={ny - 4}
-                  className="fill-slate-400 font-mono text-[9px] uppercase"
+                  x="22"
+                  y={ny - 5}
+                  className="fill-slate-400 font-mono text-[10px] uppercase"
                 >
                   {item.node.kind} · hop {item.hop}
                 </text>
                 <text
-                  x="24"
-                  y={ny + 10}
-                  className="fill-slate-100 font-mono text-[11px]"
+                  x="22"
+                  y={ny + 12}
+                  className="fill-slate-100 font-mono text-[12px]"
                 >
-                  {truncate(item.node.label, 22)}
+                  {truncate(item.node.label, 20)}
                 </text>
               </g>
             );
@@ -172,10 +181,10 @@ export function NeighborhoodGraph({
           {/* Center ErrorPattern focal node */}
           <g>
             <rect
-              x={centerX - 84}
-              y={centerY - 26}
-              width="168"
-              height="52"
+              x={centerX - 88}
+              y={centerY - 29}
+              width="176"
+              height="58"
               rx="8"
               fill="#0f172a"
               stroke="#38bdf8"
@@ -183,19 +192,19 @@ export function NeighborhoodGraph({
             />
             <text
               x={centerX}
-              y={centerY - 7}
+              y={centerY - 8}
               textAnchor="middle"
-              className="fill-sky-400 font-mono text-[9px] uppercase"
+              className="fill-sky-400 font-mono text-[10px] uppercase"
             >
               ERROR PATTERN
             </text>
             <text
               x={centerX}
-              y={centerY + 10}
+              y={centerY + 12}
               textAnchor="middle"
-              className="fill-slate-100 text-[11px] font-medium"
+              className="fill-slate-100 text-[12px] font-medium"
             >
-              {truncate(rootLabel, 21)}
+              {truncate(rootLabel, 20)}
             </text>
           </g>
 
@@ -220,31 +229,40 @@ export function NeighborhoodGraph({
               <g
                 key={item.node.id}
                 onClick={() => setSelected(item)}
-                className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected(item);
+                  }
+                }}
+                className="group cursor-pointer outline-none"
               >
                 <rect
-                  x="492"
-                  y={ny - 18}
-                  width="174"
-                  height="36"
-                  rx="6"
+                  x="490"
+                  y={ny - 22}
+                  width="178"
+                  height="44"
+                  rx="7"
                   fill={active ? "#1e293b" : "#121722"}
                   stroke={active ? "#38bdf8" : strokeColor}
-                  strokeWidth={active ? 2 : 1.4}
+                  strokeWidth={active ? 2 : 1.5}
+                  className="transition-colors group-hover:fill-[#192234] group-hover:stroke-sky-400"
                 />
                 <text
-                  x="502"
-                  y={ny - 4}
-                  className="fill-slate-400 font-mono text-[9px] uppercase"
+                  x="500"
+                  y={ny - 5}
+                  className="fill-slate-400 font-mono text-[10px] uppercase"
                 >
                   {item.node.kind} · {status}
                 </text>
                 <text
-                  x="502"
-                  y={ny + 10}
-                  className="fill-slate-100 font-mono text-[11px]"
+                  x="500"
+                  y={ny + 12}
+                  className="fill-slate-100 font-mono text-[12px]"
                 >
-                  {truncate(displayLabel, 22)}
+                  {truncate(displayLabel, 20)}
                 </text>
               </g>
             );
@@ -253,9 +271,9 @@ export function NeighborhoodGraph({
       </div>
 
       {selected && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-elevated px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2 font-mono">
-            <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] uppercase text-sky-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-elevated px-3.5 py-2.5 text-sm">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+            <span className="rounded bg-surface px-2 py-0.5 text-xs uppercase text-sky-400">
               {selected.node.kind}
             </span>
             <span className="text-ink">{selected.node.label}</span>
@@ -263,7 +281,7 @@ export function NeighborhoodGraph({
               ({selected.edge.edge_type}, hop {selected.hop})
             </span>
           </div>
-          <div className="font-mono text-[11px] text-muted tabular-nums">
+          <div className="font-mono text-xs text-muted tabular-nums">
             worked {selected.edge.worked_count} · failed{" "}
             {selected.edge.failed_count} · hits {selected.edge.hit_count}
           </div>

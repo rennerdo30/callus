@@ -1,12 +1,12 @@
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local-first mistake memory, PreToolUse guard, and rule compiler for AI coding CLIs",
   "homepage": "https://github.com/rennerdo30/callus",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/rennerdo30/callus/releases/download/v0.1.4/callus-v0.1.4-x86_64-pc-windows-msvc.zip",
-      "extract_dir": "callus-v0.1.4-x86_64-pc-windows-msvc"
+      "url": "https://github.com/rennerdo30/callus/releases/download/v0.1.5/callus-v0.1.5-x86_64-pc-windows-msvc.zip",
+      "extract_dir": "callus-v0.1.5-x86_64-pc-windows-msvc"
     }
   },
   "bin": "callus.exe",

@@ -98,12 +98,12 @@ export function PatternsView({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Instant Hybrid Search + Scope Filters */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-surface p-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
         <form onSubmit={handleSearch} className="flex flex-1 items-center gap-2">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
               type="text"
               value={searchText}
@@ -112,12 +112,12 @@ export function PatternsView({
                 if (!e.target.value.trim()) setSubmittedQuery("");
               }}
               placeholder="Hybrid search error stderr, command, or fix..."
-              className="w-full rounded-md border bg-canvas py-1.5 pr-3 pl-8 font-mono text-xs text-ink outline-none focus:border-sky-500"
+              className="w-full rounded-lg border bg-canvas py-2 pr-3 pl-9 font-mono text-sm text-ink outline-none focus:border-sky-500"
             />
           </div>
           <button
             type="submit"
-            className="shrink-0 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-sky-400"
+            className="shrink-0 cursor-pointer rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400"
           >
             Search
           </button>
@@ -128,14 +128,14 @@ export function PatternsView({
                 setSearchText("");
                 setSubmittedQuery("");
               }}
-              className="shrink-0 rounded-md border bg-elevated px-2.5 py-1.5 text-xs text-muted hover:text-ink"
+              className="shrink-0 cursor-pointer rounded-lg border bg-elevated px-3 py-2 text-sm text-muted transition hover:text-ink"
             >
               Clear
             </button>
           )}
         </form>
 
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           {SCOPE_FILTERS.map((f) => (
             <button
               key={f.id || "all"}
@@ -144,7 +144,7 @@ export function PatternsView({
                 setScopeFilter(f.id);
                 setSubmittedQuery("");
               }}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+              className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 scopeFilter === f.id && !submittedQuery
                   ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30"
                   : "text-muted hover:bg-elevated hover:text-ink"
@@ -158,34 +158,34 @@ export function PatternsView({
 
       {/* Hybrid Search Result Strip (when searching) */}
       {submittedQuery && searchQuery.data && (
-        <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
-          <div className="mb-2 flex items-center justify-between text-xs">
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-4">
+          <div className="mb-2.5 flex items-center justify-between text-sm">
             <span className="font-medium text-sky-400">
               {searchQuery.data.hits.length} hybrid match(es) for &ldquo;
               {submittedQuery}&rdquo;
             </span>
-            <span className="font-mono text-[11px] text-muted">
+            <span className="font-mono text-xs text-muted">
               {searchQuery.data.vector_used
                 ? "RRF(Vector + BM25) × Graph × Wilson"
                 : "BM25 + Signature × Graph × Wilson"}
             </span>
           </div>
           {searchQuery.data.hits.length === 0 ? (
-            <p className="text-xs text-muted">No matching fixes found.</p>
+            <p className="text-sm text-muted">No matching fixes found.</p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-2">
               {searchQuery.data.hits.slice(0, 4).map((hit) => (
                 <button
                   key={`${hit.pattern.id}:${hit.fix.id}`}
                   type="button"
                   onClick={() => onSelectPattern(hit.pattern.id)}
-                  className="rounded-md border bg-surface p-2.5 text-left hover:border-sky-500/50"
+                  className="cursor-pointer rounded-lg border bg-surface p-3 text-left transition hover:border-sky-500/50 hover:bg-elevated/50"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs font-medium text-ink">
+                    <span className="truncate text-sm font-medium text-ink">
                       {hit.pattern.title}
                     </span>
-                    <span className="shrink-0 font-mono text-[11px] text-emerald-400 tabular-nums">
+                    <span className="shrink-0 font-mono text-xs text-emerald-400 tabular-nums">
                       score {hit.score.toFixed(2)}
                     </span>
                   </div>
@@ -200,18 +200,18 @@ export function PatternsView({
       )}
 
       {/* Split Master-Detail Workspace */}
-      <div className="grid gap-4 lg:grid-cols-12">
+      <div className="grid gap-5 lg:grid-cols-12">
         {/* Pattern Cluster List */}
-        <aside className="min-w-0 rounded-lg border bg-surface lg:col-span-4">
-          <div className="flex items-center justify-between border-b px-3.5 py-2.5 text-xs">
+        <aside className="min-w-0 rounded-xl border bg-surface lg:col-span-4">
+          <div className="flex items-center justify-between border-b px-4 py-3 text-sm">
             <span className="font-semibold">Error Clusters</span>
-            <span className="font-mono text-muted tabular-nums">
+            <span className="font-mono text-xs text-muted tabular-nums">
               {patterns.length}
             </span>
           </div>
-          <div className="max-h-[640px] divide-y overflow-y-auto">
+          <div className="max-h-[680px] divide-y overflow-y-auto">
             {patterns.length === 0 ? (
-              <div className="p-4 text-xs text-muted">
+              <div className="p-5 text-sm text-muted">
                 No patterns match this filter.
               </div>
             ) : (
@@ -222,29 +222,29 @@ export function PatternsView({
                     key={pat.id}
                     type="button"
                     onClick={() => onSelectPattern(pat.id)}
-                    className={`w-full px-3.5 py-2.5 text-left transition ${
+                    className={`w-full cursor-pointer px-4 py-3 text-left transition ${
                       selected
                         ? "bg-sky-500/10 ring-1 ring-inset ring-sky-500/30"
-                        : "hover:bg-elevated/60"
+                        : "hover:bg-elevated/70"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="line-clamp-1 text-xs font-medium text-ink">
+                      <span className="line-clamp-1 text-sm font-medium text-ink">
                         {pat.title}
                       </span>
-                      <span className="shrink-0 font-mono text-xs font-semibold text-muted tabular-nums">
+                      <span className="shrink-0 font-mono text-sm font-semibold text-muted tabular-nums">
                         {pat.occurrence_count}×
                       </span>
                     </div>
-                    <p className="mt-1 truncate font-mono text-[11px] text-muted">
+                    <p className="mt-1 truncate font-mono text-xs text-muted">
                       {pat.error_template}
                     </p>
-                    <div className="mt-1.5 flex items-center gap-1.5">
+                    <div className="mt-2 flex items-center gap-2">
                       <ScopeBadge scope={pat.scope} />
-                      <span className="font-mono text-[10px] text-muted">
+                      <span className="font-mono text-xs text-muted">
                         {pat.tool_name}
                       </span>
-                      <span className="ml-auto text-[10px] text-muted">
+                      <span className="ml-auto text-xs text-muted">
                         {formatShortTime(pat.last_seen_at)}
                       </span>
                     </div>
@@ -256,24 +256,24 @@ export function PatternsView({
         </aside>
 
         {/* Pattern Inspector + 2-hop Graph + Fixes */}
-        <section className="min-w-0 space-y-4 lg:col-span-8">
+        <section className="min-w-0 space-y-5 lg:col-span-8">
           {!detailQuery.data ? (
-            <div className="rounded-lg border bg-surface p-8 text-center text-xs text-muted">
+            <div className="rounded-xl border bg-surface p-10 text-center text-sm text-muted">
               Select an error cluster to inspect its graph and candidate fixes.
             </div>
           ) : (
             <>
               {/* Pattern header & scope controls */}
-              <div className="rounded-lg border bg-surface p-4">
+              <div className="rounded-xl border bg-surface p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base font-semibold tracking-tight">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h2 className="text-lg font-semibold tracking-tight">
                         {detailQuery.data.pattern.title}
                       </h2>
                       <ScopeBadge scope={detailQuery.data.pattern.scope} />
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 font-mono text-xs text-muted">
                       <span>tool: {detailQuery.data.pattern.tool_name}</span>
                       <span>
                         sig: {detailQuery.data.pattern.signature_hash.slice(0, 12)}
@@ -288,7 +288,7 @@ export function PatternsView({
                   </div>
 
                   {/* Scope switcher */}
-                  <div className="flex items-center gap-1 rounded-md border bg-elevated p-0.5 text-[11px]">
+                  <div className="flex items-center gap-1 rounded-lg border bg-elevated p-1 text-xs">
                     {(["personal", "repo", "team"] as Scope[]).map((sc) => {
                       const active = detailQuery.data.pattern.scope === sc;
                       return (
@@ -306,9 +306,9 @@ export function PatternsView({
                                   : null,
                             })
                           }
-                          className={`rounded px-2 py-1 font-mono transition ${
+                          className={`cursor-pointer rounded-md px-2.5 py-1 font-mono transition disabled:cursor-not-allowed ${
                             active
-                              ? "bg-sky-500 text-slate-950 font-semibold"
+                              ? "bg-sky-500 font-semibold text-slate-950"
                               : "text-muted hover:text-ink"
                           }`}
                         >
@@ -319,23 +319,23 @@ export function PatternsView({
                   </div>
                 </div>
 
-                <pre className="mt-3 overflow-x-auto rounded-md border bg-canvas p-2.5 font-mono text-xs text-rose-300">
+                <pre className="mt-3.5 overflow-x-auto rounded-lg border bg-canvas p-3.5 font-mono text-[13px] leading-relaxed text-rose-300">
                   {detailQuery.data.pattern.error_template}
                 </pre>
               </div>
 
               {/* 1-2 Hop Interactive Neighborhood Graph */}
-              <div className="rounded-lg border bg-surface p-4">
-                <div className="mb-2.5 flex items-center justify-between">
+              <div className="rounded-xl border bg-surface p-5">
+                <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold tracking-tight">
+                    <h3 className="text-base font-semibold tracking-tight">
                       1–2 Hop Knowledge Graph
                     </h3>
-                    <p className="text-xs text-muted">
+                    <p className="text-sm text-muted">
                       Contexts (OCCURS_IN) → ErrorPattern → Fixes (RESOLVED_BY)
                     </p>
                   </div>
-                  <span className="font-mono text-[11px] text-muted tabular-nums">
+                  <span className="font-mono text-xs text-muted tabular-nums">
                     {graphQuery.data?.neighbors.length ?? 0} linked nodes
                   </span>
                 </div>
@@ -347,9 +347,9 @@ export function PatternsView({
               </div>
 
               {/* Candidate & Verified Fixes with 1-click Verify / Deprecate */}
-              <div className="rounded-lg border bg-surface">
-                <div className="flex items-center justify-between border-b px-4 py-2.5">
-                  <h3 className="text-sm font-semibold tracking-tight">
+              <div className="rounded-xl border bg-surface">
+                <div className="flex items-center justify-between border-b px-5 py-3">
+                  <h3 className="text-base font-semibold tracking-tight">
                     Linked Fixes &amp; Guards
                   </h3>
                   <span className="font-mono text-xs text-muted tabular-nums">
@@ -357,30 +357,32 @@ export function PatternsView({
                   </span>
                 </div>
                 {detailQuery.data.fixes.length === 0 ? (
-                  <div className="p-4 text-xs text-muted">
+                  <div className="p-5 text-sm text-muted">
                     No fixes linked yet. Callus pairs one automatically when an
                     agent recovers from this error.
                   </div>
                 ) : (
                   <div className="divide-y">
                     {detailQuery.data.fixes.map(({ fix, edge }) => (
-                      <div key={fix.id} className="space-y-2.5 p-4">
+                      <div key={fix.id} className="space-y-3 p-5">
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1 space-y-1">
+                          <div className="min-w-0 flex-1 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <StatusBadge status={fix.status} />
                               <FixTypeBadge fixType={fix.fix_type} />
-                              <span className="font-mono text-[11px] text-emerald-400 tabular-nums">
+                              <span className="font-mono text-xs text-emerald-400 tabular-nums">
                                 {edge.worked_count} worked
                               </span>
-                              <span className="font-mono text-[11px] text-rose-400 tabular-nums">
+                              <span className="font-mono text-xs text-rose-400 tabular-nums">
                                 {edge.failed_count} failed
                               </span>
                             </div>
-                            <p className="text-sm text-ink">{fix.summary}</p>
+                            <p className="text-[15px] leading-relaxed text-ink">
+                              {fix.summary}
+                            </p>
                           </div>
 
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          <div className="flex shrink-0 items-center gap-2">
                             {fix.status !== "verified" && (
                               <button
                                 type="button"
@@ -391,9 +393,9 @@ export function PatternsView({
                                     status: "verified",
                                   })
                                 }
-                                className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
+                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400 ring-1 ring-emerald-500/30 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed"
                               >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                <CheckCircle2 className="h-4 w-4" />
                                 <span>Verify</span>
                               </button>
                             )}
@@ -407,9 +409,9 @@ export function PatternsView({
                                     status: "deprecated",
                                   })
                                 }
-                                className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 px-2.5 py-1 text-xs font-medium text-rose-400 ring-1 ring-rose-500/30 hover:bg-rose-500/25"
+                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-rose-500/15 px-3 py-1.5 text-sm font-medium text-rose-400 ring-1 ring-rose-500/30 transition hover:bg-rose-500/25 disabled:cursor-not-allowed"
                               >
-                                <XCircle className="h-3.5 w-3.5" />
+                                <XCircle className="h-4 w-4" />
                                 <span>Deprecate</span>
                               </button>
                             )}
@@ -417,33 +419,33 @@ export function PatternsView({
                         </div>
 
                         {(fix.pattern_before || fix.pattern_after || fix.guard_regex) && (
-                          <div className="grid gap-2 rounded-md border bg-canvas p-2.5 font-mono text-xs sm:grid-cols-2">
+                          <div className="grid gap-3 rounded-lg border bg-canvas p-3.5 font-mono text-[13px] sm:grid-cols-2">
                             {fix.pattern_before && (
                               <div className="min-w-0">
-                                <div className="text-[10px] uppercase text-rose-400">
+                                <div className="text-xs uppercase text-rose-400">
                                   Avoid
                                 </div>
-                                <div className="truncate text-rose-300">
+                                <div className="mt-0.5 truncate text-rose-300">
                                   - {fix.pattern_before}
                                 </div>
                               </div>
                             )}
                             {fix.pattern_after && (
                               <div className="min-w-0">
-                                <div className="text-[10px] uppercase text-emerald-400">
+                                <div className="text-xs uppercase text-emerald-400">
                                   Use instead
                                 </div>
-                                <div className="truncate text-emerald-300">
+                                <div className="mt-0.5 truncate text-emerald-300">
                                   + {fix.pattern_after}
                                 </div>
                               </div>
                             )}
                             {fix.guard_regex && (
                               <div className="min-w-0 sm:col-span-2">
-                                <div className="text-[10px] uppercase text-amber-400">
+                                <div className="text-xs uppercase text-amber-400">
                                   PreToolUse Guard Regex
                                 </div>
-                                <div className="truncate text-amber-300">
+                                <div className="mt-0.5 truncate text-amber-300">
                                   /{fix.guard_regex}/
                                 </div>
                               </div>

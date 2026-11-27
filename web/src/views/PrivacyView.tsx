@@ -60,16 +60,16 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
   const totalHits = redactions.reduce((acc, item) => acc + item.count, 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-12">
+    <div className="grid gap-5 lg:grid-cols-12">
       {/* Live Client-Side Privacy Scrubber Playground */}
-      <section className="min-w-0 space-y-3 rounded-lg border bg-surface p-4 lg:col-span-8">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <section className="min-w-0 space-y-3.5 rounded-xl border bg-surface p-5 lg:col-span-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold tracking-tight">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+              <ShieldCheck className="h-4.5 w-4.5 text-emerald-400" />
               <span>Privacy Scrubber Playground</span>
             </h2>
-            <p className="text-xs text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               Every hook event and sync payload passes through this exact scrubber
               before SQLite write or HTTP sync.
             </p>
@@ -81,7 +81,7 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
                 setInput(SAMPLE_STDERR);
                 scrub.mutate(SAMPLE_STDERR);
               }}
-              className="rounded-md border bg-elevated px-2.5 py-1.5 text-xs text-muted hover:text-ink"
+              className="cursor-pointer rounded-lg border bg-elevated px-3 py-2 text-sm text-muted transition hover:border-sky-500/40 hover:text-ink"
             >
               Load Sample
             </button>
@@ -89,9 +89,9 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
               type="button"
               onClick={() => scrub.mutate(input)}
               disabled={scrub.isPending || !input.trim()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-sky-500 px-3.5 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Play className="h-3.5 w-3.5" />
+              <Play className="h-4 w-4" />
               <span>Test Redaction</span>
             </button>
           </div>
@@ -102,27 +102,27 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Paste a messy stderr, stack trace, or command containing secrets/paths..."
-          className="w-full rounded-md border bg-canvas p-3 font-mono text-xs text-ink outline-none focus:border-sky-500"
+          className="w-full rounded-lg border bg-canvas p-3.5 font-mono text-[13px] leading-relaxed text-ink outline-none focus:border-sky-500"
         />
 
         {scrub.data && (
           <div className="space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-emerald-400 tabular-nums">
+              <span className="text-sm font-semibold text-emerald-400 tabular-nums">
                 Scrubbed Output ({totalHits} redaction{totalHits === 1 ? "" : "s"})
               </span>
               <div className="flex flex-wrap items-center gap-1.5">
                 {redactions.map((item) => (
                   <span
                     key={item.category}
-                    className="rounded bg-rose-500/15 px-2 py-0.5 font-mono text-[11px] text-rose-300 ring-1 ring-rose-500/30 tabular-nums"
+                    className="rounded bg-rose-500/15 px-2 py-0.5 font-mono text-xs text-rose-300 ring-1 ring-rose-500/30 tabular-nums"
                   >
                     {item.category}: {item.count}
                   </span>
                 ))}
               </div>
             </div>
-            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md border bg-canvas p-3 font-mono text-xs leading-relaxed text-ink">
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-canvas p-3.5 font-mono text-[13px] leading-relaxed text-ink">
               {renderHighlightedScrubbed(scrub.data.scrubbed)}
             </pre>
           </div>
@@ -130,27 +130,27 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
       </section>
 
       {/* Diagnostics & External llama.cpp Status */}
-      <aside className="min-w-0 space-y-4 lg:col-span-4">
-        <section className="rounded-lg border bg-surface p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold tracking-tight">
-            <Database className="h-4 w-4 text-sky-400" />
+      <aside className="min-w-0 space-y-5 lg:col-span-4">
+        <section className="rounded-xl border bg-surface p-5">
+          <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <Database className="h-4.5 w-4.5 text-sky-400" />
             <span>Runtime &amp; Storage</span>
           </h3>
-          <dl className="mt-3 space-y-2 text-xs">
-            <div className="flex items-center justify-between border-b pb-2">
+          <dl className="mt-3.5 space-y-2.5 text-sm">
+            <div className="flex items-center justify-between border-b pb-2.5">
               <dt className="text-muted">Backend</dt>
               <dd className="font-mono font-medium uppercase">
                 {health?.backend ?? "—"}
               </dd>
             </div>
-            <div className="flex items-center justify-between border-b pb-2">
+            <div className="flex items-center justify-between border-b pb-2.5">
               <dt className="text-muted">Version</dt>
               <dd className="font-mono">v{health?.version ?? "—"}</dd>
             </div>
-            <div className="flex items-center justify-between border-b pb-2">
+            <div className="flex items-center justify-between border-b pb-2.5">
               <dt className="text-muted">Bearer Auth</dt>
-              <dd className="inline-flex items-center gap-1 font-mono">
-                <Lock className="h-3 w-3 text-muted" />
+              <dd className="inline-flex items-center gap-1.5 font-mono">
+                <Lock className="h-3.5 w-3.5 text-muted" />
                 {health?.auth_enabled ? "Protected" : "Local open"}
               </dd>
             </div>
@@ -163,18 +163,18 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
           </dl>
         </section>
 
-        <section className="rounded-lg border bg-surface p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold tracking-tight">
-            <Sparkles className="h-4 w-4 text-amber-400" />
+        <section className="rounded-xl border bg-surface p-5">
+          <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <Sparkles className="h-4.5 w-4.5 text-amber-400" />
             <span>External llama.cpp Embeddings</span>
           </h3>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
             Zero local GPU or PyTorch runtime. Callus connects over HTTP to any
             OpenAI-compatible{" "}
-            <code className="font-mono text-ink">/v1/embeddings</code> endpoint
-            and falls back cleanly to BM25 + Graph when offline.
+            <code className="font-mono text-xs text-ink">/v1/embeddings</code>{" "}
+            endpoint and falls back cleanly to BM25 + Graph when offline.
           </p>
-          <div className="mt-3 rounded-md border bg-elevated p-2.5 text-xs">
+          <div className="mt-3.5 rounded-lg border bg-elevated p-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted">Status</span>
               <span
@@ -189,14 +189,14 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
                   : "Offline BM25 + Graph"}
               </span>
             </div>
-            <div className="mt-1.5 flex items-center justify-between">
+            <div className="mt-2 flex items-center justify-between">
               <span className="text-muted">Pending Backfill</span>
               <span className="font-mono tabular-nums">
                 {overview?.pending_embeddings ?? 0} pattern(s)
               </span>
             </div>
           </div>
-          <pre className="mt-3 overflow-x-auto rounded-md border bg-canvas p-2.5 font-mono text-[11px] text-muted">
+          <pre className="mt-3.5 whitespace-pre-wrap break-all rounded-lg border bg-canvas p-3 font-mono text-xs leading-relaxed text-muted">
 {`EMBEDDING_PROVIDER=openai-compatible
 EMBEDDING_URL=http://llama-host:8081/v1/embeddings
 EMBEDDING_DIMS=${health?.embedding_dims ?? 384}`}

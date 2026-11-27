@@ -2,7 +2,7 @@ class Callus < Formula
   desc "Local-first mistake memory, PreToolUse guard, and rule compiler for AI coding CLIs"
   homepage "https://github.com/rennerdo30/callus"
   license "MIT"
-  version "0.1.4"
+  version "0.1.5"
 
   on_macos do
     on_arm do

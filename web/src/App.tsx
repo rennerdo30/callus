@@ -77,21 +77,21 @@ export function App() {
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas text-ink">
       <header className="sticky top-0 z-30 border-b bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 px-4 py-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30">
-              <ShieldCheck className="h-4 w-4" />
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30">
+              <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div className="leading-tight">
-              <div className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+              <div className="flex items-center gap-2 text-base font-semibold tracking-tight">
                 <span>Callus</span>
                 {health.data && (
-                  <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-muted">
+                  <span className="rounded bg-elevated px-2 py-0.5 font-mono text-xs text-muted">
                     v{health.data.version}
                   </span>
                 )}
               </div>
-              <p className="hidden text-[11px] text-muted sm:block">
+              <p className="hidden text-xs text-muted sm:block">
                 Mistake memory &amp; guard compiler
               </p>
             </div>
@@ -99,7 +99,7 @@ export function App() {
 
           <nav
             aria-label="Primary views"
-            className="order-3 flex w-full flex-wrap items-center gap-1 md:order-2 md:w-auto"
+            className="order-3 flex w-full flex-wrap items-center gap-1.5 md:order-2 md:w-auto"
           >
             {TABS.map((tab) => {
               const Icon = tab.icon;
@@ -109,13 +109,13 @@ export function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
+                  className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                     selected
                       ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30"
                       : "text-muted hover:bg-elevated hover:text-ink"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-4 w-4" />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -124,9 +124,11 @@ export function App() {
 
           <div className="order-2 flex items-center gap-2 md:order-3">
             {health.data && (
-              <div className="hidden items-center gap-1.5 rounded-full border bg-elevated px-2.5 py-1 text-[11px] sm:flex">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="font-mono uppercase">{health.data.backend}</span>
+              <div className="hidden items-center gap-2 rounded-full border bg-elevated px-3 py-1.5 text-xs sm:flex">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="font-mono font-medium uppercase">
+                  {health.data.backend}
+                </span>
                 <span className="text-muted">·</span>
                 <span className="text-muted">
                   {health.data.embedding_enabled
@@ -139,36 +141,37 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setAuthPromptOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-md border bg-elevated px-2 py-1 text-xs text-muted hover:text-ink"
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg border bg-elevated px-2.5 py-2 text-xs font-medium text-muted transition hover:border-sky-500/40 hover:text-ink"
                 title="Configure API Bearer token"
               >
-                <KeyRound className="h-3.5 w-3.5" />
+                <KeyRound className="h-4 w-4" />
                 <span className="hidden sm:inline">Token</span>
               </button>
             )}
             <button
               type="button"
               onClick={() => setDark((d) => !d)}
-              className="rounded-md border bg-elevated p-1.5 text-muted hover:text-ink"
+              className="cursor-pointer rounded-lg border bg-elevated p-2 text-muted transition hover:border-sky-500/40 hover:text-ink"
               aria-label="Toggle color theme"
+              title={dark ? "Switch to light mode" : "Switch to dark mode"}
             >
               {dark ? (
-                <Sun className="h-3.5 w-3.5" />
+                <Sun className="h-4 w-4" />
               ) : (
-                <Moon className="h-3.5 w-3.5" />
+                <Moon className="h-4 w-4" />
               )}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5">
+      <main className="mx-auto max-w-7xl px-5 py-6">
         {(needsAuth || authPromptOpen) && (
           <form
             onSubmit={handleSaveToken}
-            className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5"
+            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4"
           >
-            <div className="text-xs">
+            <div className="text-sm">
               <div className="font-semibold text-amber-300">
                 Bearer API token required
               </div>
@@ -183,11 +186,11 @@ export function App() {
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 placeholder="Paste CALLUS_API_TOKEN..."
-                className="w-full rounded-md border bg-surface px-3 py-1.5 font-mono text-xs text-ink outline-none focus:ring-1 focus:ring-sky-500"
+                className="w-full rounded-md border bg-surface px-3 py-2 font-mono text-sm text-ink outline-none focus:border-sky-500"
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-sky-400"
+                className="shrink-0 cursor-pointer rounded-md bg-sky-500 px-3.5 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400"
               >
                 Unlock
               </button>

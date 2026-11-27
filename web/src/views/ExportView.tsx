@@ -62,17 +62,17 @@ export function ExportView() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Control strip */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-surface p-4">
+      <div className="flex flex-col gap-3.5 rounded-xl border bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             {FORMATS.map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => setFormat(f.id)}
-                className={`rounded-md px-3 py-1.5 font-mono text-xs font-medium transition ${
+                className={`cursor-pointer rounded-lg px-3.5 py-2 font-mono text-sm font-medium transition ${
                   format === f.id
                     ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30"
                     : "text-muted hover:bg-elevated hover:text-ink"
@@ -88,16 +88,16 @@ export function ExportView() {
               type="button"
               onClick={handleCopy}
               disabled={!content}
-              className="inline-flex items-center gap-1.5 rounded-md border bg-elevated px-3 py-1.5 text-xs font-medium text-ink hover:border-sky-500/50 hover:text-sky-400 disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-elevated px-3.5 py-2 text-sm font-medium text-ink transition hover:border-sky-500/50 hover:text-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {copied ? (
                 <>
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <Check className="h-4 w-4 text-emerald-400" />
                   <span>Copied</span>
                 </>
               ) : (
                 <>
-                  <Copy className="h-3.5 w-3.5" />
+                  <Copy className="h-4 w-4" />
                   <span>Copy</span>
                 </>
               )}
@@ -106,22 +106,22 @@ export function ExportView() {
               type="button"
               onClick={handleDownload}
               disabled={!content}
-              className="inline-flex items-center gap-1.5 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-sky-500 px-3.5 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
               <span>Download</span>
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 border-t pt-3 text-xs">
-          <div className="flex items-center gap-1 rounded-md border bg-elevated p-0.5">
+        <div className="flex flex-wrap items-center gap-4 border-t pt-3.5 text-sm">
+          <div className="flex items-center gap-1 rounded-lg border bg-elevated p-1">
             {SCOPES.map((s) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => setScope(s.id)}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                className={`cursor-pointer rounded-md px-3 py-1 text-sm font-medium transition ${
                   scope === s.id
                     ? "bg-surface text-ink shadow-xs"
                     : "text-muted hover:text-ink"
@@ -132,7 +132,7 @@ export function ExportView() {
             ))}
           </div>
 
-          <label className="flex items-center gap-2 text-muted">
+          <label className="flex cursor-pointer items-center gap-2.5 text-muted">
             <span className="whitespace-nowrap">Line budget</span>
             <input
               type="range"
@@ -141,9 +141,9 @@ export function ExportView() {
               step={5}
               value={budgetLines}
               onChange={(e) => setBudgetLines(Number(e.target.value))}
-              className="w-28 accent-sky-400"
+              className="w-32 cursor-pointer accent-sky-400"
             />
-            <span className="whitespace-nowrap font-mono text-ink tabular-nums">
+            <span className="whitespace-nowrap font-mono text-sm text-ink tabular-nums">
               {budgetLines} lines
             </span>
           </label>
@@ -154,11 +154,11 @@ export function ExportView() {
               value={repoHash}
               onChange={(e) => setRepoHash(e.target.value)}
               placeholder="Filter repo_hash (optional)"
-              className="rounded-md border bg-canvas px-2.5 py-1 font-mono text-xs text-ink outline-none focus:border-sky-500"
+              className="rounded-lg border bg-canvas px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-sky-500"
             />
           )}
 
-          <div className="ml-auto font-mono text-[11px] text-muted tabular-nums">
+          <div className="ml-auto font-mono text-xs text-muted tabular-nums">
             {exportQuery.data?.candidate_count ?? 0} ranked candidate(s) ·{" "}
             {lines.length} lines rendered
           </div>
@@ -166,15 +166,15 @@ export function ExportView() {
       </div>
 
       {/* Live Preview Panel */}
-      <section className="overflow-hidden rounded-lg border bg-surface">
-        <div className="flex items-center justify-between border-b bg-elevated/60 px-4 py-2 font-mono text-xs text-muted">
+      <section className="overflow-hidden rounded-xl border bg-surface">
+        <div className="flex items-center justify-between border-b bg-elevated/60 px-5 py-2.5 font-mono text-xs text-muted">
           <span>{activeFormat.filename}</span>
           <span>Zero AGENTS.md bloat · ranked by frequency × Wilson</span>
         </div>
         {exportQuery.isLoading ? (
-          <div className="p-6 text-xs text-muted">Generating preview…</div>
+          <div className="p-6 text-sm text-muted">Generating preview…</div>
         ) : (
-          <div className="max-h-[560px] overflow-auto bg-canvas p-4 font-mono text-xs leading-relaxed [font-variant-ligatures:none]">
+          <div className="max-h-[580px] overflow-auto bg-canvas p-5 font-mono text-[13px] leading-6 [font-variant-ligatures:none]">
             {lines.map((line, i) => {
               const isHunk = line.startsWith("@@");
               const isHeader =
@@ -197,8 +197,8 @@ export function ExportView() {
                       ? "text-muted font-semibold"
                       : "text-ink";
               return (
-                <div key={i} className={`flex gap-3 rounded px-1.5 ${rowClass}`}>
-                  <span className="w-7 shrink-0 select-none text-right text-muted/60 tabular-nums">
+                <div key={i} className={`flex gap-3 rounded px-2 ${rowClass}`}>
+                  <span className="w-8 shrink-0 select-none text-right text-muted/60 tabular-nums">
                     {i + 1}
                   </span>
                   <span className="whitespace-pre-wrap break-words">

@@ -32,6 +32,44 @@ html.dark {
   border-color: var(--border-line);
 }
 
+@layer base {
+  body {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  select:not(:disabled),
+  summary,
+  input[type="range"]:not(:disabled),
+  label:has(
+    input[type="checkbox"]:not(:disabled),
+    input[type="radio"]:not(:disabled),
+    input[type="range"]:not(:disabled)
+  ) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid rgb(56 189 248 / 0.65);
+    outline-offset: 2px;
+  }
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
