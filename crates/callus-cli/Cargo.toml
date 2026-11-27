@@ -13,6 +13,7 @@ name = "callus"
 path = "src/main.rs"
 
 [dependencies]
+axum.workspace = true
 callus-core.workspace = true
 callus-store.workspace = true
 clap.workspace = true
@@ -25,6 +26,7 @@ toml_edit.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
+reqwest.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -33,11 +33,33 @@ pub(crate) struct Args {
     db: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
-struct CallusMcpServer {
-    engine: Arc<LearningEngine<SqliteStore>>,
+#[derive(Clone)]
+pub(crate) struct CallusMcpServer {
+    engine: Arc<LearningEngine<Arc<dyn KnowledgeStore>>>,
     embedder: Arc<dyn callus_core::Embedder>,
     scrubber: Arc<Scrubber>,
+}
+
+impl std::fmt::Debug for CallusMcpServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CallusMcpServer")
+            .field("embedder", &self.embedder)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CallusMcpServer {
+    pub(crate) fn new(
+        engine: Arc<LearningEngine<Arc<dyn KnowledgeStore>>>,
+        embedder: Arc<dyn callus_core::Embedder>,
+        scrubber: Arc<Scrubber>,
+    ) -> Self {
+        Self {
+            engine,
+            embedder,
+            scrubber,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -541,10 +563,12 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         context: "embedder configuration failed".to_owned(),
         source: std::io::Error::other(e.to_string()),
     })?;
-    let store = SqliteStore::open(&db_path, dims).map_err(|e| CallusError::Io {
-        context: "cannot open sqlite store".to_owned(),
-        source: std::io::Error::other(e.to_string()),
-    })?;
+    let store: Arc<dyn KnowledgeStore> = Arc::new(SqliteStore::open(&db_path, dims).map_err(
+        |e| CallusError::Io {
+            context: "cannot open sqlite store".to_owned(),
+            source: std::io::Error::other(e.to_string()),
+        },
+    )?);
     let scrubber = Scrubber::new(&ScrubberConfig {
         repo_root: std::env::current_dir()
             .ok()
@@ -553,11 +577,11 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         ..ScrubberConfig::default()
     })?;
 
-    let server = CallusMcpServer {
-        engine: Arc::new(LearningEngine::new(store, EngineConfig::default())),
+    let server = CallusMcpServer::new(
+        Arc::new(LearningEngine::new(store, EngineConfig::default())),
         embedder,
-        scrubber: Arc::new(scrubber),
-    };
+        Arc::new(scrubber),
+    );
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

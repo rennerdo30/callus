@@ -6,6 +6,7 @@ mod hook;
 mod init;
 mod mcp;
 mod scrub_test;
+mod server;
 
 use std::process::ExitCode;
 
@@ -28,9 +29,9 @@ enum Command {
     Hook(hook::Args),
     /// Run the official Rust MCP server (`rmcp`) over stdio
     Mcp(mcp::Args),
-    /// Run the HTTP API, MCP endpoint, sync and web UI (planned for v0.2)
-    Serve,
-    /// Sync scoped knowledge with a central server (planned for v0.2)
+    /// Run the central HTTP REST API and Streamable HTTP MCP server (`/mcp`)
+    Serve(server::Args),
+    /// Sync scoped knowledge with a central server (planned for CL-12)
     Sync,
     /// Export budgeted rule diffs, deterministic guard hooks, or rule packs
     Export(export::Args),
@@ -47,8 +48,8 @@ fn run(command: Command) -> Result<(), CallusError> {
             return Ok(());
         }
         Command::Mcp(args) => return mcp::run(args),
+        Command::Serve(args) => return server::run(args),
         Command::Export(args) => return export::run(args),
-        Command::Serve => "serve",
         Command::Sync => "sync",
     };
     Err(CallusError::NotImplemented(planned))

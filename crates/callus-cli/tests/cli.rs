@@ -124,14 +124,12 @@ fn errors_are_reported_without_panicking() {
 
 #[test]
 fn planned_commands_say_so() {
-    for command in ["serve", "sync"] {
-        let output = callus().arg(command).assert().code(1);
-        let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
-        assert!(
-            stderr.contains(&format!("`callus {command}` is not implemented yet")),
-            "{stderr}"
-        );
-    }
+    let output = callus().arg("sync").assert().code(1);
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("`callus sync` is not implemented yet"),
+        "{stderr}"
+    );
 }
 
 #[test]

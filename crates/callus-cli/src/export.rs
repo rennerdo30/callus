@@ -252,7 +252,7 @@ fn is_stale(last_seen_iso: &str, now_iso: &str, stale_days: u64) -> bool {
     now.saturating_sub(last) >= threshold
 }
 
-fn render_markdown(
+pub(crate) fn render_markdown(
     target_file: &str,
     scope: ExportScope,
     candidates: &[ExportCandidate],
@@ -314,7 +314,7 @@ fn render_markdown(
     out
 }
 
-fn render_hooks_json(guards: &[Fix]) -> Result<String, CallusError> {
+pub(crate) fn render_hooks_json(guards: &[Fix]) -> Result<String, CallusError> {
     let entries: Vec<_> = guards
         .iter()
         .map(|g| {
@@ -335,7 +335,10 @@ fn render_hooks_json(guards: &[Fix]) -> Result<String, CallusError> {
     Ok(rendered)
 }
 
-fn render_pack_json(candidates: &[ExportCandidate], now_iso: &str) -> Result<String, CallusError> {
+pub(crate) fn render_pack_json(
+    candidates: &[ExportCandidate],
+    now_iso: &str,
+) -> Result<String, CallusError> {
     // Public packs NEVER include personal-scoped rules.
     let items: Vec<_> = candidates
         .iter()
