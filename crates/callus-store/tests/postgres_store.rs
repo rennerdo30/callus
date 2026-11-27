@@ -3,6 +3,7 @@
 use callus_core::{
     CliKind, EdgeType, EmbeddingStatus, ErrorPattern, Fix, FixSource, FixStatus, FixType,
     GraphNode, NodeKind, OsKind, Scope, Scrubber, ScrubberConfig, ShellKind, ToolEvent, ToolPhase,
+    compute_signature_hash, normalize_error_template,
 };
 use callus_store::{
     EngineConfig, IngestOutcome, KnowledgeStore, LearningEngine, PgStore, StoreError,
@@ -46,11 +47,14 @@ async fn pg_store_full_hybrid_search_graph_sync_and_learning_e2e() {
     ));
 
     // Upsert + CRDT occurrence delta merge + pgvector cosine search + tsvector BM25.
+    let template =
+        normalize_error_template("ParserError: The '<' operator is reserved for future use.");
+    let sig = compute_signature_hash("shell", &template);
     let p1 = ErrorPattern {
         id: "pg-p1".to_owned(),
-        signature_hash: "pg-sig-1".to_owned(),
+        signature_hash: sig,
         title: "PowerShell rejects bash heredoc operator".to_owned(),
-        error_template: "ParserError: The '<' operator is reserved for future use.".to_owned(),
+        error_template: template,
         tool_name: "shell".to_owned(),
         scope: Scope::Repo,
         repo_hash: Some("repo-pg-a".to_owned()),
