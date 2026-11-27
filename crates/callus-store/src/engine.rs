@@ -69,6 +69,9 @@ pub enum IngestOutcome {
     },
     /// `PostToolUse` succeeded with no preceding unpaired failure in the window.
     RecordedOk,
+    /// `PostToolUseFailure` was non-actionable noise (empty payload, exit-1 search/diff probe,
+    /// or normal TDD unit-test assertion failure) and was intentionally not recorded as a pattern.
+    IgnoredNoise,
 }
 
 /// Coordinates scrubbing, storage, learning, feedback, and hybrid ranking.
@@ -139,6 +142,10 @@ impl<S: KnowledgeStore> LearningEngine<S> {
         event: &ToolEvent,
         query_embedding: Option<&[f32]>,
     ) -> Result<IngestOutcome, StoreError> {
+        if is_non_actionable_failure(event) {
+            return Ok(IngestOutcome::IgnoredNoise);
+        }
+
         let raw_error = event
             .error_text
             .as_deref()
@@ -644,6 +651,179 @@ fn is_shell_tool(tool_name: &str) -> bool {
         tool_name.to_ascii_lowercase().as_str(),
         "shell" | "bash" | "sh" | "pwsh" | "powershell" | "cmd" | "run_command" | "exec"
     )
+}
+
+/// Filters out failure events that are normal workflow signals rather than reusable
+/// CLI, shell, or environment mistakes (empty payloads, exit-1 search/diff probes, and
+/// TDD unit-test assertion failures).
+fn is_non_actionable_failure(event: &ToolEvent) -> bool {
+    let err = event.error_text.as_deref().map_or("", str::trim);
+    let cmd = event.command_or_input.as_deref().map_or("", str::trim);
+
+    // 1. Signal-less payloads (e.g. empty `{}`) must never create "unknown tool failure" patterns.
+    if err.is_empty() && cmd.is_empty() {
+        return true;
+    }
+
+    if !is_shell_tool(&event.tool_name) || cmd.is_empty() {
+        return false;
+    }
+
+    let err_lower = err.to_ascii_lowercase();
+    if looks_like_cli_or_env_error(&err_lower) {
+        return false;
+    }
+
+    // 2. Search/probe/diff commands where exit code 1 means "no match / differences found".
+    if event.exit_code == Some(1) && is_exit1_probe_command(cmd) {
+        return true;
+    }
+
+    // 3. Normal TDD test-runner runs where tests executed and failed assertions.
+    is_test_runner_command(cmd) && looks_like_test_assertion_failure(&err_lower)
+}
+
+fn looks_like_cli_or_env_error(err_lower: &str) -> bool {
+    [
+        "unexpected argument",
+        "unknown flag",
+        "unknown option",
+        "unrecognized option",
+        "unrecognized argument",
+        "invalid option",
+        "a parameter cannot be found",
+        "command not found",
+        "is not recognized as the name",
+        "not recognized as an internal or external command",
+        "parsererror",
+        "syntaxerror",
+        "syntax error",
+        "lock file",
+        "--locked",
+        "permission denied",
+        "access is denied",
+        "enoent",
+        "eacces",
+        "no such file or directory",
+        "cannot find the path",
+        "failed to parse manifest",
+    ]
+    .iter()
+    .any(|needle| err_lower.contains(needle))
+}
+
+fn last_segment_tokens(cmd: &str) -> Vec<String> {
+    let segment = cmd
+        .rsplit([';', '\n'])
+        .next()
+        .unwrap_or(cmd)
+        .rsplit("&&")
+        .next()
+        .unwrap_or(cmd)
+        .rsplit("||")
+        .next()
+        .unwrap_or(cmd);
+
+    let mut tokens = Vec::new();
+    for raw in segment.split_whitespace() {
+        // Skip leading POSIX `KEY=VALUE` env assignments before the executable.
+        if tokens.is_empty() && raw.contains('=') && !raw.starts_with('-') {
+            continue;
+        }
+        let cleaned = raw
+            .trim_matches(|c| matches!(c, '"' | '\''))
+            .to_ascii_lowercase();
+        if tokens.is_empty() {
+            let exe = cleaned
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or(&cleaned)
+                .trim_end_matches(".exe")
+                .trim_end_matches(".cmd")
+                .trim_end_matches(".bat")
+                .to_owned();
+            if !exe.is_empty() {
+                tokens.push(exe);
+            }
+        } else {
+            tokens.push(cleaned);
+        }
+    }
+    tokens
+}
+
+fn is_exit1_probe_command(cmd: &str) -> bool {
+    let toks = last_segment_tokens(cmd);
+    let Some(first) = toks.first().map(String::as_str) else {
+        return false;
+    };
+    if matches!(
+        first,
+        "grep"
+            | "egrep"
+            | "fgrep"
+            | "rg"
+            | "ripgrep"
+            | "ag"
+            | "findstr"
+            | "select-string"
+            | "diff"
+            | "cmp"
+            | "test"
+            | "["
+    ) {
+        return true;
+    }
+    if first == "git" {
+        if toks.get(1).map(String::as_str) == Some("grep") {
+            return true;
+        }
+        if toks.get(1).map(String::as_str) == Some("diff")
+            && toks.iter().any(|t| t == "--exit-code" || t == "--quiet")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_test_runner_command(cmd: &str) -> bool {
+    let toks = last_segment_tokens(cmd);
+    let Some(first) = toks.first().map(String::as_str) else {
+        return false;
+    };
+    let second = toks.get(1).map(String::as_str);
+    match first {
+        "pytest" | "vitest" | "jest" | "rspec" | "phpunit" | "ctest" | "mocha" => true,
+        "cargo" => matches!(second, Some("test" | "nextest")),
+        "npm" | "pnpm" | "yarn" | "bun" | "go" | "dotnet" | "mvn" | "gradle" | "gradlew" => {
+            second == Some("test")
+        }
+        "python" | "python3" | "py" => {
+            second == Some("-m")
+                && matches!(toks.get(2).map(String::as_str), Some("pytest" | "unittest"))
+        }
+        _ => false,
+    }
+}
+
+fn looks_like_test_assertion_failure(err_lower: &str) -> bool {
+    [
+        "test result: failed",
+        "assertionerror",
+        "assertion failed",
+        "assertion `",
+        "panicked at",
+        "failures:",
+        "failed!  - failed:",
+        "--- fail:",
+        "fail\t",
+        "tests:",
+        "failing",
+        "expected:",
+    ]
+    .iter()
+    .any(|needle| err_lower.contains(needle))
 }
 
 fn is_repo_local_artifact(error_template: &str, command: Option<&str>) -> bool {

@@ -131,8 +131,10 @@ fn sync_requires_server_url() {
 
 #[test]
 fn hook_fails_open() {
+    let db = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("hook-fails-open.db");
     callus()
-        .args(["hook", "--cli", "claude", "--event", "failure"])
+        .args(["hook", "--cli", "claude", "--event", "failure", "--db"])
+        .arg(&db)
         .write_stdin("{}")
         .assert()
         .success()

@@ -337,6 +337,134 @@ async fn negative_feedback_demotes_broken_hint_and_suppresses_injection_loop() {
     assert_eq!(fixes[0].fix.status, FixStatus::Candidate);
 }
 
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn noise_filter_ignores_tdd_tests_exit1_probes_and_empty_payloads_but_keeps_cli_errors() {
+    let store = SqliteStore::open_in_memory(4).unwrap();
+    let engine = LearningEngine::new(store, EngineConfig::default());
+    let scrubber = Scrubber::new(&ScrubberConfig::default()).unwrap();
+
+    // 1. Signal-less empty payload must be ignored (never create "unknown tool failure").
+    let empty = ToolEvent {
+        event_id: "noise-empty".to_owned(),
+        timestamp: "2026-11-27T10:00:00Z".to_owned(),
+        cli: CliKind::ClaudeCode,
+        cli_version: None,
+        model: None,
+        session_id: "s-noise".to_owned(),
+        os: OsKind::Windows,
+        shell: ShellKind::Pwsh,
+        repo_hash: Some("repo-noise".to_owned()),
+        tool_name: "unknown".to_owned(),
+        phase: ToolPhase::PostFailure,
+        command_or_input: None,
+        exit_code: Some(1),
+        error_text: None,
+        duration_ms: None,
+    };
+    assert_eq!(
+        engine.ingest_event(&empty, &scrubber, None).await.unwrap(),
+        IngestOutcome::IgnoredNoise
+    );
+
+    // 2. Expected exit-1 search/diff probes are ignored.
+    for (id, cmd, err) in [
+        ("noise-rg", "rg \"no_match_here\" src/", ""),
+        ("noise-git-diff", "git diff --exit-code", ""),
+        ("noise-grep", "grep -q foo bar.txt", ""),
+    ] {
+        let ev = shell_event(
+            id,
+            "2026-11-27T10:00:05Z",
+            "s-noise",
+            OsKind::Linux,
+            ShellKind::Bash,
+            Some("repo-noise"),
+            ToolPhase::PostFailure,
+            cmd,
+            Some(err),
+        );
+        assert_eq!(
+            engine.ingest_event(&ev, &scrubber, None).await.unwrap(),
+            IngestOutcome::IgnoredNoise,
+            "expected IgnoredNoise for {cmd}"
+        );
+    }
+
+    // 3. Normal TDD unit-test assertion failures are ignored.
+    for (id, cmd, err) in [
+        (
+            "noise-cargo-test",
+            "cargo test --workspace",
+            "failures:\n    test_login\ntest result: FAILED. 12 passed; 1 failed",
+        ),
+        (
+            "noise-pytest",
+            "python -m pytest tests/test_auth.py",
+            "E       AssertionError: assert 401 == 200",
+        ),
+    ] {
+        let ev = shell_event(
+            id,
+            "2026-11-27T10:00:10Z",
+            "s-noise",
+            OsKind::Linux,
+            ShellKind::Bash,
+            Some("repo-noise"),
+            ToolPhase::PostFailure,
+            cmd,
+            Some(err),
+        );
+        assert_eq!(
+            engine.ingest_event(&ev, &scrubber, None).await.unwrap(),
+            IngestOutcome::IgnoredNoise,
+            "expected IgnoredNoise for {cmd}"
+        );
+    }
+
+    // 4. Genuine CLI/environment errors on test or search commands MUST still be recorded!
+    let lock_err = shell_event(
+        "real-cargo-locked",
+        "2026-11-27T10:00:15Z",
+        "s-noise",
+        OsKind::Windows,
+        ShellKind::Pwsh,
+        Some("repo-noise"),
+        ToolPhase::PostFailure,
+        "cargo test --locked",
+        Some("error: the lock file Cargo.lock needs to be updated but --locked was passed"),
+    );
+    assert!(matches!(
+        engine
+            .ingest_event(&lock_err, &scrubber, None)
+            .await
+            .unwrap(),
+        IngestOutcome::RecordedFailure { .. }
+    ));
+
+    let bad_flag = shell_event(
+        "real-rg-flag",
+        "2026-11-27T10:00:20Z",
+        "s-noise",
+        OsKind::Linux,
+        ShellKind::Bash,
+        Some("repo-noise"),
+        ToolPhase::PostFailure,
+        "rg --bogus-flag foo",
+        Some("error: unexpected argument '--bogus-flag' found"),
+    );
+    assert!(matches!(
+        engine
+            .ingest_event(&bad_flag, &scrubber, None)
+            .await
+            .unwrap(),
+        IngestOutcome::RecordedFailure { .. }
+    ));
+
+    let patterns = engine.store().list_patterns(None, None, 50).await.unwrap();
+    assert_eq!(patterns.len(), 2);
+}
+
 #[test]
 fn wilson_and_recency_math_match_spec_invariants() {
     // 25/26 battle-tested fix must clearly outrank a 1/1 lucky hit.

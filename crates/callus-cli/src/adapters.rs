@@ -226,7 +226,8 @@ pub(crate) fn format_hook_output(cli: AdapterCli, outcome: &IngestOutcome) -> Op
         IngestOutcome::Allowed
         | IngestOutcome::RecordedFailure { .. }
         | IngestOutcome::Recovered { .. }
-        | IngestOutcome::RecordedOk => None,
+        | IngestOutcome::RecordedOk
+        | IngestOutcome::IgnoredNoise => None,
     }
 }
 
