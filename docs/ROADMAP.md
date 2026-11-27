@@ -45,12 +45,12 @@ Every milestone is shippable, testable, and verifiable on its own.
 **Goal:** Fast, high-craft Web UI embedded directly inside the `callus` binary (`rust-embed`) following the **information-in-1-second** principle.
 
 ### Deliverables
-- [ ] React 19 + TypeScript + Vite + Tailwind CSS v4 + TanStack Query frontend (`web/`) embedded into Rust binary
-- [ ] **Overview Dashboard:** Top recurring mistakes, retries saved, OS/shell/CLI/model breakdown, embedder & sync status
-- [ ] **Patterns & Graph Explorer:** Instant hybrid search + interactive 1–2 hop graph view (`ErrorPattern → Context → Fixes`), Verify / Deprecate / Merge controls
-- [ ] **Export Studio:** Live preview & copy/download for `AGENTS.md` / `CLAUDE.md` diffs (additions + stale prunes), `PreToolUse` guards, and rule packs
-- [ ] **Privacy & Settings:** Live scrubber tester, scope overview, external `llama.cpp` status
-- [ ] Visual screenshot review of all 4 screens (desktop + narrow viewport) before sign-off
+- [x] React 19 + TypeScript + Vite + Tailwind CSS v4 + TanStack Query frontend (`web/`) embedded into Rust binary
+- [x] **Overview Dashboard:** Top recurring mistakes, retries saved, OS/shell/CLI/model breakdown, embedder & sync status
+- [x] **Patterns & Graph Explorer:** Instant hybrid search + interactive 1–2 hop graph view (`ErrorPattern → Context → Fixes`), Verify / Deprecate / Merge controls
+- [x] **Export Studio:** Live preview & copy/download for `AGENTS.md` / `CLAUDE.md` diffs (additions + stale prunes), `PreToolUse` guards, and rule packs
+- [x] **Privacy & Settings:** Live scrubber tester, scope overview, external `llama.cpp` status
+- [x] Visual screenshot review of all 4 screens (desktop + narrow viewport) before sign-off
 
 ---
 
@@ -59,7 +59,7 @@ Every milestone is shippable, testable, and verifiable on its own.
 **Goal:** Frictionless public open-source launch.
 
 ### Deliverables
-- [ ] Versioned, human-reviewable community rule packs (`windows-pwsh`, `macos-zsh`, `git-basics`, etc.) with `callus pack import/export`
-- [ ] Cross-platform release binaries via GitHub Actions (Windows `.zip`, macOS `.tar.gz`, Linux musl/gnu `.tar.gz`) + GHCR Docker image (`ghcr.io/rennerdo30/callus`)
-- [ ] Installers / package manager manifests (`cargo install`, Homebrew tap / Scoop manifest, Docker quickstart)
-- [ ] Security audit of scrubber, auth, sync boundaries, and prompt-injection defenses on injected hook hints
+- [x] Versioned, human-reviewable community rule packs (`windows-pwsh`, `macos-zsh`, `git-basics`, etc.) with `callus pack import/export`
+- [x] Cross-platform release binaries via GitHub Actions (Windows `.zip`, macOS `.tar.gz`, Linux musl/gnu `.tar.gz`) + GHCR Docker image (`ghcr.io/rennerdo30/callus`)
+- [x] Installers / package manager manifests (`cargo install`, Homebrew tap / Scoop manifest, Docker quickstart)
+- [x] Security audit of scrubber, auth, sync boundaries, and prompt-injection defenses on injected hook hints
