@@ -95,6 +95,17 @@ fn run_inner(args: Args) -> Result<(), String> {
         return Ok(());
     };
 
+    // Fast path for PreToolUse: if no deterministic guards are active for this repo,
+    // skip Scrubber regex initialization completely so hooks stay <5ms.
+    if event.phase == callus_core::ToolPhase::Pre {
+        let guards = rt
+            .block_on(store.list_active_guards(event.repo_hash.as_deref()))
+            .map_err(|e| format!("guard query failed: {e}"))?;
+        if guards.is_empty() {
+            return Ok(());
+        }
+    }
+
     let repo_root = payload
         .get("cwd")
         .or_else(|| payload.get("workspacePath"))

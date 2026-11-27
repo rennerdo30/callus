@@ -130,12 +130,47 @@ pub(crate) fn apply_migrations(
         });
     }
 
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.pragma_update(None, "busy_timeout", 5000_i64)?;
+
+    // Fast path for already-initialized databases: verify schema_version and embedding_dims
+    // with one lookup instead of re-executing DDL on every `<5ms` hook invocation.
+    let fast_meta: Option<(String, String)> = conn
+        .query_row(
+            "SELECT \
+               (SELECT value FROM schema_meta WHERE key = 'schema_version'), \
+               (SELECT value FROM schema_meta WHERE key = 'embedding_dims')",
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                ))
+            },
+        )
+        .ok()
+        .and_then(|(v, d)| Some((v?, d?)));
+
+    if let Some((ver, raw_dims)) = fast_meta {
+        let expected: usize = raw_dims.parse().map_err(|err| StoreError::InvalidData {
+            context: "schema_meta.embedding_dims",
+            detail: format!("{raw_dims:?}: {err}"),
+        })?;
+        if expected != embedding_dims {
+            return Err(StoreError::DimensionMismatch {
+                expected,
+                actual: embedding_dims,
+            });
+        }
+        if ver == SCHEMA_VERSION.to_string() {
+            return Ok(());
+        }
+    }
+
     if enable_wal {
         conn.pragma_update(None, "journal_mode", "WAL")?;
     }
     conn.pragma_update(None, "synchronous", "NORMAL")?;
-    conn.pragma_update(None, "foreign_keys", "ON")?;
-    conn.pragma_update(None, "busy_timeout", 5000_i64)?;
 
     conn.execute_batch(BASE_SCHEMA_SQL)?;
 
