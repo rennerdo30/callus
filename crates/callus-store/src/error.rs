@@ -7,6 +7,8 @@ use callus_core::CallusError;
 pub enum StoreError {
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    #[error("PostgreSQL error: {0}")]
+    Postgres(#[from] sqlx::Error),
     #[error("embedding dimension mismatch: store expects {expected}, got {actual}")]
     DimensionMismatch { expected: usize, actual: usize },
     #[error("invalid stored data ({context}): {detail}")]

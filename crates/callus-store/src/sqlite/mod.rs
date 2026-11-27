@@ -1008,6 +1008,275 @@ impl KnowledgeStore for SqliteStore {
         })
         .await
     }
+
+    async fn delete_outbox_entries(&self, ids: &[i64]) -> Result<usize, StoreError> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let ids = ids.to_vec();
+        self.run(move |conn| {
+            let tx = conn.transaction()?;
+            let mut deleted = 0_usize;
+            for id in ids {
+                deleted += tx.execute("DELETE FROM sync_outbox WHERE id = ?1", params![id])?;
+            }
+            tx.commit()?;
+            Ok(deleted)
+        })
+        .await
+    }
+
+    async fn list_patterns_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        repo_hash: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<ErrorPattern>, StoreError> {
+        let since = since_iso.to_owned();
+        let allowed: HashSet<Scope> = scopes.iter().copied().collect();
+        let repo = repo_hash.map(str::to_owned);
+        self.run(move |conn| {
+            let mut stmt = conn.prepare(&format!(
+                "SELECT {PATTERN_COLS} FROM error_patterns \
+                 WHERE updated_at > ?1 \
+                 ORDER BY updated_at ASC \
+                 LIMIT ?2"
+            ))?;
+            let rows = stmt.query_map(
+                params![
+                    since,
+                    usize_to_i64(limit.saturating_mul(4).max(limit), "limit")?
+                ],
+                |row| Ok(row_to_pattern(row)),
+            )?;
+            let mut out = Vec::new();
+            for item in rows {
+                let pat = item??;
+                if !allowed.contains(&pat.scope) {
+                    continue;
+                }
+                if pat.scope == Scope::Repo && (repo.is_none() || pat.repo_hash != repo) {
+                    continue;
+                }
+                out.push(pat);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+            Ok(out)
+        })
+        .await
+    }
+
+    async fn list_fixes_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        limit: usize,
+    ) -> Result<Vec<Fix>, StoreError> {
+        let since = since_iso.to_owned();
+        let allowed: HashSet<Scope> = scopes.iter().copied().collect();
+        self.run(move |conn| {
+            let mut stmt = conn.prepare(&format!(
+                "SELECT {FIX_COLS} FROM fixes \
+                 WHERE updated_at > ?1 \
+                 ORDER BY updated_at ASC \
+                 LIMIT ?2"
+            ))?;
+            let rows = stmt.query_map(
+                params![
+                    since,
+                    usize_to_i64(limit.saturating_mul(4).max(limit), "limit")?
+                ],
+                |row| Ok(row_to_fix(row)),
+            )?;
+            let mut out = Vec::new();
+            for item in rows {
+                let fix = item??;
+                if !allowed.contains(&fix.scope) {
+                    continue;
+                }
+                out.push(fix);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+            Ok(out)
+        })
+        .await
+    }
+
+    async fn list_edges_updated_since(
+        &self,
+        since_iso: &str,
+        limit: usize,
+    ) -> Result<Vec<GraphEdge>, StoreError> {
+        let since = since_iso.to_owned();
+        self.run(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT src_id, edge_type, dst_id, worked_count, failed_count, hit_count, last_seen_at \
+                 FROM graph_edges \
+                 WHERE last_seen_at > ?1 \
+                 ORDER BY last_seen_at ASC \
+                 LIMIT ?2",
+            )?;
+            let rows = stmt.query_map(
+                params![since, usize_to_i64(limit, "limit")?],
+                |row| Ok(row_to_edge(row)),
+            )?;
+            rows.map(|r| r?).collect()
+        })
+        .await
+    }
+
+    async fn list_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>, StoreError> {
+        if node_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = node_ids.to_vec();
+        self.run(move |conn| {
+            let mut stmt =
+                conn.prepare("SELECT id, kind, label, props_json FROM graph_nodes WHERE id = ?1")?;
+            let mut out = Vec::new();
+            for id in ids {
+                if let Some(node) = stmt
+                    .query_row(params![id], |row| Ok(row_to_node(row)))
+                    .optional()?
+                    .transpose()?
+                {
+                    out.push(node);
+                }
+            }
+            Ok(out)
+        })
+        .await
+    }
+
+    async fn merge_pattern_delta(
+        &self,
+        pattern: &ErrorPattern,
+        occurrence_delta: u64,
+    ) -> Result<ErrorPattern, StoreError> {
+        let mut pat = pattern.clone();
+        pat.occurrence_count = occurrence_delta;
+        self.run(move |conn| {
+            let tx = conn.transaction()?;
+            let existing = tx
+                .query_row(
+                    &format!("SELECT {PATTERN_COLS} FROM error_patterns WHERE signature_hash = ?1"),
+                    params![pat.signature_hash],
+                    |row| Ok(row_to_pattern(row)),
+                )
+                .optional()?
+                .transpose()?;
+
+            let stored = if let Some(mut cur) = existing {
+                cur.occurrence_count = cur.occurrence_count.saturating_add(occurrence_delta);
+                if pat.last_seen_at > cur.last_seen_at {
+                    cur.last_seen_at = pat.last_seen_at;
+                }
+                if pat.updated_at > cur.updated_at {
+                    cur.updated_at = pat.updated_at;
+                }
+                if pat.scope == Scope::Team {
+                    cur.scope = Scope::Team;
+                    cur.repo_hash = None;
+                }
+                tx.execute(
+                    "UPDATE error_patterns \
+                     SET occurrence_count = ?2, last_seen_at = ?3, updated_at = ?4, \
+                         scope = ?5, repo_hash = ?6 \
+                     WHERE id = ?1",
+                    params![
+                        cur.id,
+                        u64_to_i64(cur.occurrence_count, "occurrence_count")?,
+                        cur.last_seen_at,
+                        cur.updated_at,
+                        cur.scope.as_str(),
+                        cur.repo_hash,
+                    ],
+                )?;
+                cur
+            } else {
+                tx.execute(
+                    &format!(
+                        "INSERT INTO error_patterns ({PATTERN_COLS}) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
+                    ),
+                    params![
+                        pat.id,
+                        pat.signature_hash,
+                        pat.title,
+                        pat.error_template,
+                        pat.tool_name,
+                        pat.scope.as_str(),
+                        pat.repo_hash,
+                        u64_to_i64(occurrence_delta, "occurrence_count")?,
+                        pat.first_seen_at,
+                        pat.last_seen_at,
+                        pat.embedding_status.as_str(),
+                        pat.updated_at,
+                    ],
+                )?;
+                pat
+            };
+            sync_fts(&tx, &stored)?;
+            tx.commit()?;
+            Ok(stored)
+        })
+        .await
+    }
+
+    async fn merge_fix_lww(&self, fix: &Fix) -> Result<Fix, StoreError> {
+        let incoming = fix.clone();
+        self.run(move |conn| {
+            let existing = conn
+                .query_row(
+                    &format!("SELECT {FIX_COLS} FROM fixes WHERE id = ?1"),
+                    params![incoming.id],
+                    |row| Ok(row_to_fix(row)),
+                )
+                .optional()?
+                .transpose()?;
+            if let Some(cur) = existing
+                && incoming.updated_at < cur.updated_at
+            {
+                return Ok(cur);
+            }
+            conn.execute(
+                &format!(
+                    "INSERT INTO fixes ({FIX_COLS}) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) \
+                     ON CONFLICT(id) DO UPDATE SET \
+                       summary = excluded.summary, \
+                       fix_type = excluded.fix_type, \
+                       pattern_before = excluded.pattern_before, \
+                       pattern_after = excluded.pattern_after, \
+                       guard_regex = excluded.guard_regex, \
+                       status = excluded.status, \
+                       scope = excluded.scope, \
+                       source = excluded.source, \
+                       updated_at = excluded.updated_at"
+                ),
+                params![
+                    incoming.id,
+                    incoming.summary,
+                    incoming.fix_type.as_str(),
+                    incoming.pattern_before,
+                    incoming.pattern_after,
+                    incoming.guard_regex,
+                    incoming.status.as_str(),
+                    incoming.scope.as_str(),
+                    incoming.source.as_str(),
+                    incoming.created_at,
+                    incoming.updated_at,
+                ],
+            )?;
+            Ok(incoming)
+        })
+        .await
+    }
 }
 
 fn row_to_node_at(row: &Row<'_>, offset: usize) -> Result<GraphNode, StoreError> {

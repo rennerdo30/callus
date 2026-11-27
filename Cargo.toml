@@ -23,6 +23,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.2"
 sqlite-vec = "0.1.9"
+sqlx = { version = "0.9.1", default-features = false, features = ["postgres", "runtime-tokio", "tls-native-tls", "json"] }
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
 toml_edit = "0.25.21"

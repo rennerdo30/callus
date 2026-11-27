@@ -2,6 +2,8 @@
 //!
 //! Implemented by `SqliteStore` locally and by `PgStore` on the central server.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use callus_core::{EdgeType, Episode, ErrorPattern, Fix, FixStatus, GraphEdge, GraphNode, Scope};
 use serde::{Deserialize, Serialize};
@@ -197,7 +199,7 @@ pub trait KnowledgeStore: Send + Sync {
     /// Deletes episodes older than `cutoff_iso` and returns the number removed.
     async fn prune_episodes_before(&self, cutoff_iso: &str) -> Result<usize, StoreError>;
 
-    // --- Sync Outbox (v0.2 ready) ---
+    // --- Sync Outbox & CRDT Merge (v0.2) ---
 
     async fn enqueue_outbox(
         &self,
@@ -208,4 +210,249 @@ pub trait KnowledgeStore: Send + Sync {
     ) -> Result<i64, StoreError>;
 
     async fn list_outbox(&self, limit: usize) -> Result<Vec<OutboxEntry>, StoreError>;
+
+    async fn delete_outbox_entries(&self, ids: &[i64]) -> Result<usize, StoreError>;
+
+    async fn list_patterns_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        repo_hash: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<ErrorPattern>, StoreError>;
+
+    async fn list_fixes_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        limit: usize,
+    ) -> Result<Vec<Fix>, StoreError>;
+
+    async fn list_edges_updated_since(
+        &self,
+        since_iso: &str,
+        limit: usize,
+    ) -> Result<Vec<GraphEdge>, StoreError>;
+
+    async fn list_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>, StoreError>;
+
+    /// CRDT-style merge: accumulates `occurrence_delta` onto an existing pattern or inserts it.
+    async fn merge_pattern_delta(
+        &self,
+        pattern: &ErrorPattern,
+        occurrence_delta: u64,
+    ) -> Result<ErrorPattern, StoreError>;
+
+    /// Last-write-wins merge keyed on `updated_at` so stale syncs never revert human verdicts.
+    async fn merge_fix_lww(&self, fix: &Fix) -> Result<Fix, StoreError>;
+}
+
+#[async_trait]
+impl<S: KnowledgeStore + ?Sized> KnowledgeStore for Arc<S> {
+    fn embedding_dims(&self) -> usize {
+        (**self).embedding_dims()
+    }
+    async fn upsert_pattern(&self, pattern: &ErrorPattern) -> Result<ErrorPattern, StoreError> {
+        (**self).upsert_pattern(pattern).await
+    }
+    async fn get_pattern(&self, id: &str) -> Result<Option<ErrorPattern>, StoreError> {
+        (**self).get_pattern(id).await
+    }
+    async fn find_pattern_by_signature(
+        &self,
+        signature_hash: &str,
+    ) -> Result<Option<ErrorPattern>, StoreError> {
+        (**self).find_pattern_by_signature(signature_hash).await
+    }
+    async fn list_patterns(
+        &self,
+        scope: Option<Scope>,
+        repo_hash: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<ErrorPattern>, StoreError> {
+        (**self).list_patterns(scope, repo_hash, limit).await
+    }
+    async fn update_pattern_scope(
+        &self,
+        id: &str,
+        scope: Scope,
+        repo_hash: Option<&str>,
+        updated_at: &str,
+    ) -> Result<(), StoreError> {
+        (**self)
+            .update_pattern_scope(id, scope, repo_hash, updated_at)
+            .await
+    }
+    async fn list_pending_embeddings(&self, limit: usize) -> Result<Vec<ErrorPattern>, StoreError> {
+        (**self).list_pending_embeddings(limit).await
+    }
+    async fn upsert_pattern_embedding(
+        &self,
+        pattern_id: &str,
+        embedding: &[f32],
+    ) -> Result<(), StoreError> {
+        (**self)
+            .upsert_pattern_embedding(pattern_id, embedding)
+            .await
+    }
+    async fn search_bm25(
+        &self,
+        query: &str,
+        tool_name: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<Bm25Hit>, StoreError> {
+        (**self).search_bm25(query, tool_name, limit).await
+    }
+    async fn search_vector(
+        &self,
+        embedding: &[f32],
+        limit: usize,
+    ) -> Result<Vec<VectorHit>, StoreError> {
+        (**self).search_vector(embedding, limit).await
+    }
+    async fn upsert_fix(&self, fix: &Fix) -> Result<Fix, StoreError> {
+        (**self).upsert_fix(fix).await
+    }
+    async fn get_fix(&self, id: &str) -> Result<Option<Fix>, StoreError> {
+        (**self).get_fix(id).await
+    }
+    async fn update_fix_status(
+        &self,
+        id: &str,
+        status: FixStatus,
+        updated_at: &str,
+    ) -> Result<(), StoreError> {
+        (**self).update_fix_status(id, status, updated_at).await
+    }
+    async fn list_active_guards(&self, repo_hash: Option<&str>) -> Result<Vec<Fix>, StoreError> {
+        (**self).list_active_guards(repo_hash).await
+    }
+    async fn upsert_node(&self, node: &GraphNode) -> Result<(), StoreError> {
+        (**self).upsert_node(node).await
+    }
+    async fn upsert_edge(&self, edge: &GraphEdge) -> Result<(), StoreError> {
+        (**self).upsert_edge(edge).await
+    }
+    async fn record_edge_feedback(
+        &self,
+        src_id: &str,
+        edge_type: EdgeType,
+        dst_id: &str,
+        worked_delta: u64,
+        failed_delta: u64,
+        hit_delta: u64,
+        last_seen_at: &str,
+    ) -> Result<GraphEdge, StoreError> {
+        (**self)
+            .record_edge_feedback(
+                src_id,
+                edge_type,
+                dst_id,
+                worked_delta,
+                failed_delta,
+                hit_delta,
+                last_seen_at,
+            )
+            .await
+    }
+    async fn neighbors(
+        &self,
+        node_id: &str,
+        edge_types: Option<&[EdgeType]>,
+        max_hops: u8,
+    ) -> Result<Vec<Neighbor>, StoreError> {
+        (**self).neighbors(node_id, edge_types, max_hops).await
+    }
+    async fn fixes_for_pattern(&self, pattern_id: &str) -> Result<Vec<FixCandidate>, StoreError> {
+        (**self).fixes_for_pattern(pattern_id).await
+    }
+    async fn pattern_repo_count(&self, pattern_id: &str) -> Result<usize, StoreError> {
+        (**self).pattern_repo_count(pattern_id).await
+    }
+    async fn pattern_contexts(&self, pattern_id: &str) -> Result<Vec<GraphNode>, StoreError> {
+        (**self).pattern_contexts(pattern_id).await
+    }
+    async fn is_fix_superseded_or_obsolete(
+        &self,
+        fix_id: &str,
+        cli: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<bool, StoreError> {
+        (**self)
+            .is_fix_superseded_or_obsolete(fix_id, cli, model)
+            .await
+    }
+    async fn record_episode(&self, episode: &Episode) -> Result<(), StoreError> {
+        (**self).record_episode(episode).await
+    }
+    async fn recent_session_episodes(
+        &self,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Vec<Episode>, StoreError> {
+        (**self).recent_session_episodes(session_id, limit).await
+    }
+    async fn prune_episodes_before(&self, cutoff_iso: &str) -> Result<usize, StoreError> {
+        (**self).prune_episodes_before(cutoff_iso).await
+    }
+    async fn enqueue_outbox(
+        &self,
+        entity_type: &str,
+        entity_id: &str,
+        payload_json: &str,
+        created_at: &str,
+    ) -> Result<i64, StoreError> {
+        (**self)
+            .enqueue_outbox(entity_type, entity_id, payload_json, created_at)
+            .await
+    }
+    async fn list_outbox(&self, limit: usize) -> Result<Vec<OutboxEntry>, StoreError> {
+        (**self).list_outbox(limit).await
+    }
+    async fn delete_outbox_entries(&self, ids: &[i64]) -> Result<usize, StoreError> {
+        (**self).delete_outbox_entries(ids).await
+    }
+    async fn list_patterns_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        repo_hash: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<ErrorPattern>, StoreError> {
+        (**self)
+            .list_patterns_updated_since(since_iso, scopes, repo_hash, limit)
+            .await
+    }
+    async fn list_fixes_updated_since(
+        &self,
+        since_iso: &str,
+        scopes: &[Scope],
+        limit: usize,
+    ) -> Result<Vec<Fix>, StoreError> {
+        (**self)
+            .list_fixes_updated_since(since_iso, scopes, limit)
+            .await
+    }
+    async fn list_edges_updated_since(
+        &self,
+        since_iso: &str,
+        limit: usize,
+    ) -> Result<Vec<GraphEdge>, StoreError> {
+        (**self).list_edges_updated_since(since_iso, limit).await
+    }
+    async fn list_nodes_by_ids(&self, node_ids: &[String]) -> Result<Vec<GraphNode>, StoreError> {
+        (**self).list_nodes_by_ids(node_ids).await
+    }
+    async fn merge_pattern_delta(
+        &self,
+        pattern: &ErrorPattern,
+        occurrence_delta: u64,
+    ) -> Result<ErrorPattern, StoreError> {
+        (**self)
+            .merge_pattern_delta(pattern, occurrence_delta)
+            .await
+    }
+    async fn merge_fix_lww(&self, fix: &Fix) -> Result<Fix, StoreError> {
+        (**self).merge_fix_lww(fix).await
+    }
 }

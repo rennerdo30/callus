@@ -1,13 +1,16 @@
-//! Unified storage trait, SQLite WAL hybrid backend, and self-learning engine.
+//! Unified storage trait, SQLite WAL local backend, PostgreSQL `pgvector`
+//! central server backend, and self-learning engine.
 
 pub mod engine;
 pub mod error;
+pub mod postgres;
 pub mod ranking;
 pub mod sqlite;
 pub mod traits;
 
 pub use engine::{EngineConfig, IngestOutcome, LearningEngine};
 pub use error::StoreError;
+pub use postgres::{PgStore, encode_pgvector};
 pub use ranking::{
     DEFAULT_HALF_LIFE_DAYS, DEFAULT_MIN_INJECT_CONFIDENCE, RRF_K, WILSON_Z, context_multiplier,
     effective_confidence, hybrid_relevance, parse_iso_epoch_secs, recency_decay,
