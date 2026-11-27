@@ -664,13 +664,16 @@ fn summarize_title(template: &str) -> String {
 
 fn build_recovery_summary(event: &ToolEvent, before: &str, after: &str) -> String {
     let env = format!("{}/{}", event.os.as_str(), event.shell.as_str());
-    let summary = if before.is_empty() {
-        format!("On {env}, use `{}`.", truncate_chars(after, 140))
+    let single_line = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let before_line = single_line(before);
+    let after_line = single_line(after);
+    let summary = if before_line.is_empty() {
+        format!("On {env}, use `{}`.", truncate_chars(&after_line, 140))
     } else {
         format!(
             "On {env}, instead of `{}` use `{}`.",
-            truncate_chars(before, 70),
-            truncate_chars(after, 110)
+            truncate_chars(&before_line, 70),
+            truncate_chars(&after_line, 110)
         )
     };
     truncate_chars(&summary, 240)
