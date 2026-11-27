@@ -17,6 +17,7 @@ axum.workspace = true
 callus-core.workspace = true
 callus-store.workspace = true
 clap.workspace = true
+reqwest.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true

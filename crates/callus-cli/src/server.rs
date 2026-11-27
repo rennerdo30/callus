@@ -30,6 +30,7 @@ use crate::{
     },
     hook::{configured_dims, resolve_db_path},
     mcp::CallusMcpServer,
+    sync::{SyncPullResponse, SyncPushRequest, SyncPushResponse},
 };
 
 #[derive(Debug, clap::Args)]
@@ -95,6 +96,13 @@ struct ExportQueryParams {
     repo_hash: Option<String>,
     budget_lines: Option<usize>,
     stale_days: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SyncPullParams {
+    since: Option<String>,
+    repo_hash: Option<String>,
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -164,6 +172,8 @@ pub(crate) fn build_router(state: AppState) -> Router {
         .route("/api/v1/search", post(search_fixes))
         .route("/api/v1/export", get(export_rules))
         .route("/api/v1/scrub-test", post(scrub_test))
+        .route("/api/v1/sync/push", post(sync_push))
+        .route("/api/v1/sync/pull", get(sync_pull))
         .nest_service("/mcp", mcp_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), bearer_auth));
 
@@ -392,6 +402,167 @@ async fn export_rules(
 
 async fn scrub_test(State(state): State<AppState>, Json(body): Json<ScrubBody>) -> Response {
     Json(state.scrubber.scrub_text(&body.text)).into_response()
+}
+
+async fn sync_push(State(state): State<AppState>, Json(req): Json<SyncPushRequest>) -> Response {
+    let mut accepted_patterns = 0_usize;
+    let mut accepted_fixes = 0_usize;
+    let mut accepted_edges = 0_usize;
+    let mut rejected_personal = 0_usize;
+
+    for mut item in req.patterns {
+        if item.pattern.scope == Scope::Personal {
+            rejected_personal += 1;
+            continue;
+        }
+        item.pattern.title = state.scrubber.scrub_text(&item.pattern.title).scrubbed;
+        item.pattern.error_template = state
+            .scrubber
+            .scrub_text(&item.pattern.error_template)
+            .scrubbed;
+        if let Err(e) = state
+            .engine
+            .store()
+            .merge_pattern_delta(&item.pattern, item.occurrence_delta)
+            .await
+        {
+            return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+        accepted_patterns += 1;
+    }
+
+    for mut fix in req.fixes {
+        if fix.scope == Scope::Personal {
+            rejected_personal += 1;
+            continue;
+        }
+        fix.summary = state.scrubber.scrub_text(&fix.summary).scrubbed;
+        fix.pattern_before = fix
+            .pattern_before
+            .map(|s| state.scrubber.scrub_text(&s).scrubbed);
+        fix.pattern_after = fix
+            .pattern_after
+            .map(|s| state.scrubber.scrub_text(&s).scrubbed);
+        if let Err(e) = state.engine.store().merge_fix_lww(&fix).await {
+            return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+        accepted_fixes += 1;
+    }
+
+    for node in req.nodes {
+        if let Err(e) = state.engine.store().upsert_node(&node).await {
+            return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+    }
+
+    for edge in req.edges {
+        if let Err(e) = state
+            .engine
+            .store()
+            .record_edge_feedback(
+                &edge.src_id,
+                edge.edge_type,
+                &edge.dst_id,
+                edge.worked_delta,
+                edge.failed_delta,
+                edge.hit_delta,
+                &edge.last_seen_at,
+            )
+            .await
+        {
+            return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+        accepted_edges += 1;
+    }
+
+    Json(SyncPushResponse {
+        accepted_patterns,
+        accepted_fixes,
+        accepted_edges,
+        rejected_personal,
+        server_time: now_iso_utc(),
+    })
+    .into_response()
+}
+
+async fn sync_pull(
+    State(state): State<AppState>,
+    Query(params): Query<SyncPullParams>,
+) -> Response {
+    let since = params.since.as_deref().unwrap_or("");
+    let limit = params.limit.unwrap_or(200).clamp(1, 500);
+    let scopes = [Scope::Team, Scope::Repo, Scope::PublicPack];
+
+    let patterns = match state
+        .engine
+        .store()
+        .list_patterns_updated_since(since, &scopes, params.repo_hash.as_deref(), limit)
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+    let fixes = match state
+        .engine
+        .store()
+        .list_fixes_updated_since(since, &scopes, limit)
+        .await
+    {
+        Ok(f) => f,
+        Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+    let all_edges = match state
+        .engine
+        .store()
+        .list_edges_updated_since(since, limit.saturating_mul(2))
+        .await
+    {
+        Ok(e) => e,
+        Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+
+    let pat_ids: HashSet<&str> = patterns.iter().map(|p| p.id.as_str()).collect();
+    let fix_ids: HashSet<&str> = fixes.iter().map(|f| f.id.as_str()).collect();
+    let mut node_ids = HashSet::new();
+    let mut edges = Vec::new();
+    for edge in all_edges {
+        let relevant = edge
+            .src_id
+            .strip_prefix("err:")
+            .is_some_and(|id| pat_ids.contains(id))
+            || edge
+                .src_id
+                .strip_prefix("fix:")
+                .is_some_and(|id| fix_ids.contains(id));
+        if relevant {
+            node_ids.insert(edge.src_id.clone());
+            node_ids.insert(edge.dst_id.clone());
+            edges.push(edge);
+        }
+    }
+    let id_vec: Vec<String> = node_ids.into_iter().collect();
+    let nodes = match state.engine.store().list_nodes_by_ids(&id_vec).await {
+        Ok(n) => n,
+        Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+
+    let cursor = patterns
+        .iter()
+        .map(|p| p.updated_at.as_str())
+        .chain(fixes.iter().map(|f| f.updated_at.as_str()))
+        .chain(edges.iter().map(|e| e.last_seen_at.as_str()))
+        .max()
+        .unwrap_or(since)
+        .to_owned();
+
+    Json(SyncPullResponse {
+        cursor,
+        patterns,
+        fixes,
+        nodes,
+        edges,
+    })
+    .into_response()
 }
 
 pub(crate) fn run(args: Args) -> Result<(), CallusError> {

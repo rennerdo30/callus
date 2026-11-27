@@ -7,6 +7,7 @@ mod init;
 mod mcp;
 mod scrub_test;
 mod server;
+mod sync;
 
 use std::process::ExitCode;
 
@@ -31,8 +32,8 @@ enum Command {
     Mcp(mcp::Args),
     /// Run the central HTTP REST API and Streamable HTTP MCP server (`/mcp`)
     Serve(server::Args),
-    /// Sync scoped knowledge with a central server (planned for CL-12)
-    Sync,
+    /// Bidirectional scoped sync with a central Callus server
+    Sync(sync::Args),
     /// Export budgeted rule diffs, deterministic guard hooks, or rule packs
     Export(export::Args),
     /// Show what the privacy scrubber redacts in a text
@@ -40,19 +41,18 @@ enum Command {
 }
 
 fn run(command: Command) -> Result<(), CallusError> {
-    let planned = match command {
-        Command::ScrubTest(args) => return scrub_test::run(args),
-        Command::Init(args) => return init::run(args),
+    match command {
+        Command::ScrubTest(args) => scrub_test::run(args),
+        Command::Init(args) => init::run(args),
         Command::Hook(args) => {
             hook::run(args);
-            return Ok(());
+            Ok(())
         }
-        Command::Mcp(args) => return mcp::run(args),
-        Command::Serve(args) => return server::run(args),
-        Command::Export(args) => return export::run(args),
-        Command::Sync => "sync",
-    };
-    Err(CallusError::NotImplemented(planned))
+        Command::Mcp(args) => mcp::run(args),
+        Command::Serve(args) => server::run(args),
+        Command::Sync(args) => sync::run(args),
+        Command::Export(args) => export::run(args),
+    }
 }
 
 fn main() -> ExitCode {
