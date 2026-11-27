@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "name": "git-basics",
+  "version": "0.1.0",
+  "description": "Curated MIT rule pack for safe, predictable Git workflows across coding agents.",
+  "os": null,
+  "shell": null,
+  "rules": [
+    {
+      "id": "push-explicit-refspec",
+      "title": "git push fails when branch has no upstream",
+      "error_template": "fatal: The current branch has no upstream branch",
+      "tool_name": "shell",
+      "fix_summary": "Push feature branches with an explicit refspec `git push origin HEAD:refs/heads/<branch>` instead of bare `git push`.",
+      "fix_type": "hint",
+      "pattern_before": "git push",
+      "pattern_after": "git push origin HEAD:refs/heads/<branch>",
+      "guard_regex": null,
+      "status": "verified"
+    },
+    {
+      "id": "non-fast-forward-pull",
+      "title": "Rejected non-fast-forward push",
+      "error_template": "error: failed to push some refs: updates were rejected because the tip of your current branch is behind",
+      "tool_name": "shell",
+      "fix_summary": "Fetch and rebase onto the updated remote branch (`git fetch origin && git rebase origin/<branch>`) before pushing; never blindly force-push shared branches.",
+      "fix_type": "hint",
+      "pattern_before": "git push --force",
+      "pattern_after": "git fetch origin && git rebase origin/<branch>",
+      "guard_regex": null,
+      "status": "verified"
+    }
+  ]
+}

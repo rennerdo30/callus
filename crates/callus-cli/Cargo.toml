@@ -18,6 +18,7 @@ callus-core.workspace = true
 callus-store.workspace = true
 clap.workspace = true
 mime_guess.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 rmcp.workspace = true
 rust-embed.workspace = true

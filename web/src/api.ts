@@ -1,6 +1,6 @@
-export type Scope = "personal" | "repo" | "team" | "public_pack";
+export type Scope = "personal" | "repo" | "team" | "public-pack";
 export type FixStatus = "candidate" | "verified" | "deprecated" | "obsolete";
-export type FixType = "hint" | "pre_tool_guard" | "rule_snippet" | "workflow";
+export type FixType = "hint" | "pre_tool_guard" | "agents_md_rule";
 export type ExportFormat = "agents-md" | "claude-md" | "gemini-md" | "hooks" | "pack";
 export type ExportScope = "repo" | "global" | "all";
 
@@ -90,7 +90,12 @@ export interface OverviewResponse {
   embedding_dims: number;
   backend: string;
   version: string;
-  scope_counts: Record<Scope, number>;
+  scope_counts: {
+    personal: number;
+    repo: number;
+    team: number;
+    public_pack: number;
+  };
   context_breakdown: ContextStat[];
   hotspots: ErrorPattern[];
 }

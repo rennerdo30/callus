@@ -5,6 +5,7 @@ mod export;
 mod hook;
 mod init;
 mod mcp;
+mod pack;
 mod scrub_test;
 mod server;
 mod sync;
@@ -40,6 +41,8 @@ enum Command {
     Sync(sync::Args),
     /// Export budgeted rule diffs, deterministic guard hooks, or rule packs
     Export(export::Args),
+    /// Import, export, or list curated community rule packs
+    Pack(pack::Args),
     /// Show what the privacy scrubber redacts in a text
     ScrubTest(scrub_test::Args),
 }
@@ -57,6 +60,7 @@ fn run(command: Command) -> Result<(), CallusError> {
         Command::Ui(args) => ui::run(args),
         Command::Sync(args) => sync::run(args),
         Command::Export(args) => export::run(args),
+        Command::Pack(args) => pack::run(args),
     }
 }
 

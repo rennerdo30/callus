@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "rust-cargo",
+  "version": "0.1.0",
+  "description": "Curated MIT rule pack for Rust Cargo workspaces and Clippy pedantic checks.",
+  "os": null,
+  "shell": null,
+  "rules": [
+    {
+      "id": "cargo-locked-out-of-date",
+      "title": "Cargo.lock needs update when --locked is passed",
+      "error_template": "error: the lock file Cargo.lock needs to be updated but --locked was passed to prevent this",
+      "tool_name": "shell",
+      "fix_summary": "After editing `Cargo.toml` dependencies, run `cargo check --workspace` once without `--locked` to refresh `Cargo.lock`, then re-run CI checks with `--locked`.",
+      "fix_type": "hint",
+      "pattern_before": "cargo test --workspace --locked",
+      "pattern_after": "cargo check --workspace && cargo test --workspace --locked",
+      "guard_regex": null,
+      "status": "verified"
+    }
+  ]
+}

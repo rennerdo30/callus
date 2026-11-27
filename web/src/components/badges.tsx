@@ -5,19 +5,19 @@ export function ScopeBadge({ scope }: { scope: Scope }) {
     team: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
     repo: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
     personal: "bg-slate-500/15 text-muted ring-slate-500/30",
-    public_pack: "bg-violet-500/15 text-violet-400 ring-violet-500/30",
+    "public-pack": "bg-violet-500/15 text-violet-400 ring-violet-500/30",
   };
   const labels: Record<Scope, string> = {
     team: "team",
     repo: "repo",
     personal: "personal",
-    public_pack: "pack",
+    "public-pack": "pack",
   };
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${styles[scope]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${styles[scope] ?? styles.personal}`}
     >
-      {labels[scope]}
+      {labels[scope] ?? scope}
     </span>
   );
 }
@@ -42,12 +42,11 @@ export function FixTypeBadge({ fixType }: { fixType: FixType }) {
   const labels: Record<FixType, string> = {
     hint: "live hint",
     pre_tool_guard: "pre-tool guard",
-    rule_snippet: "rule snippet",
-    workflow: "workflow",
+    agents_md_rule: "AGENTS.md rule",
   };
   return (
     <span className="inline-flex items-center rounded bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-muted ring-1 ring-line">
-      {labels[fixType]}
+      {labels[fixType] ?? fixType}
     </span>
   );
 }

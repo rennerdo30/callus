@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "name": "windows-pwsh",
+  "version": "0.1.0",
+  "description": "Curated MIT rule pack preventing recurring POSIX-shell pitfalls on Windows PowerShell (pwsh).",
+  "os": "windows",
+  "shell": "pwsh",
+  "rules": [
+    {
+      "id": "no-posix-heredoc",
+      "title": "PowerShell rejects POSIX heredocs (<< EOF)",
+      "error_template": "ParserError: The '<' operator is reserved for future use in PowerShell",
+      "tool_name": "shell",
+      "fix_summary": "PowerShell does not support POSIX heredocs (<< 'EOF'). Pass inline scripts via `python -c`, `node -e`, or a PowerShell here-string `@' ... '@ | Set-Content`.",
+      "fix_type": "pre_tool_guard",
+      "pattern_before": "python - << 'EOF'",
+      "pattern_after": "python -c \"...\"",
+      "guard_regex": "<<\\s*['\"]?[A-Za-z_][A-Za-z0-9_]*['\"]?",
+      "status": "verified"
+    },
+    {
+      "id": "no-export-syntax",
+      "title": "Use $env:VAR instead of POSIX export in PowerShell",
+      "error_template": "The term 'export' is not recognized as a name of a cmdlet, function, script file, or executable program",
+      "tool_name": "shell",
+      "fix_summary": "In PowerShell set environment variables with `$env:KEY='value'` instead of POSIX `export KEY=value`.",
+      "fix_type": "pre_tool_guard",
+      "pattern_before": "export RUST_LOG=debug && cargo test",
+      "pattern_after": "$env:RUST_LOG='debug'; cargo test",
+      "guard_regex": "(^|[;&|]\\s*)export\\s+[A-Z_][A-Z0-9_]*=",
+      "status": "verified"
+    },
+    {
+      "id": "rm-rf-alias",
+      "title": "rm -rf fails on PowerShell Remove-Item alias",
+      "error_template": "Remove-Item: A parameter cannot be found that matches parameter name 'rf'",
+      "tool_name": "shell",
+      "fix_summary": "In PowerShell `rm` aliases `Remove-Item` and rejects `-rf`. Use `Remove-Item -Recurse -Force <path>`.",
+      "fix_type": "hint",
+      "pattern_before": "rm -rf dist",
+      "pattern_after": "Remove-Item -Recurse -Force dist",
+      "guard_regex": null,
+      "status": "verified"
+    }
+  ]
+}

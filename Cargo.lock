@@ -235,6 +235,7 @@ dependencies = [
  "callus-store",
  "clap",
  "mime_guess",
+ "regex",
  "reqwest",
  "rmcp",
  "rust-embed",
