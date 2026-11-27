@@ -10,6 +10,10 @@ import {
   Sun,
 } from "lucide-react";
 import { ApiHttpError, api, getStoredToken, setStoredToken } from "./api";
+import { OverviewView } from "./views/OverviewView";
+import { PatternsView } from "./views/PatternsView";
+import { ExportView } from "./views/ExportView";
+import { PrivacyView } from "./views/PrivacyView";
 
 export type TabId = "overview" | "patterns" | "export" | "privacy";
 
@@ -22,6 +26,7 @@ const TABS: { id: TabId; label: string; icon: typeof Activity }[] = [
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [dark, setDark] = useState<boolean>(() => {
     try {
       return localStorage.getItem("callus_theme") !== "light";
@@ -64,11 +69,16 @@ export function App() {
     void queryClient.invalidateQueries();
   };
 
+  const handleJumpToPattern = (id: string) => {
+    setSelectedPatternId(id);
+    setActiveTab("patterns");
+  };
+
   return (
-    <div className="min-h-screen bg-canvas text-ink">
+    <div className="min-h-screen overflow-x-clip bg-canvas text-ink">
       <header className="sticky top-0 z-30 border-b bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2.5">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30">
               <ShieldCheck className="h-4 w-4" />
             </div>
@@ -81,7 +91,7 @@ export function App() {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted">
+              <p className="hidden text-[11px] text-muted sm:block">
                 Mistake memory &amp; guard compiler
               </p>
             </div>
@@ -89,7 +99,7 @@ export function App() {
 
           <nav
             aria-label="Primary views"
-            className="flex items-center gap-1 overflow-x-auto"
+            className="order-3 flex w-full flex-wrap items-center gap-1 md:order-2 md:w-auto"
           >
             {TABS.map((tab) => {
               const Icon = tab.icon;
@@ -99,7 +109,7 @@ export function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${
                     selected
                       ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30"
                       : "text-muted hover:bg-elevated hover:text-ink"
@@ -112,7 +122,7 @@ export function App() {
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="order-2 flex items-center gap-2 md:order-3">
             {health.data && (
               <div className="hidden items-center gap-1.5 rounded-full border bg-elevated px-2.5 py-1 text-[11px] sm:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -142,7 +152,11 @@ export function App() {
               className="rounded-md border bg-elevated p-1.5 text-muted hover:text-ink"
               aria-label="Toggle color theme"
             >
-              {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              {dark ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )}
             </button>
           </div>
         </div>
@@ -181,20 +195,23 @@ export function App() {
           </form>
         )}
 
-        <section className="rounded-lg border bg-surface p-5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-base font-semibold tracking-tight capitalize">
-              {activeTab}
-            </h1>
-            {overview.data && (
-              <span className="font-mono text-xs text-muted tabular-nums">
-                {overview.data.pattern_count} patterns ·{" "}
-                {overview.data.total_occurrences} occurrences ·{" "}
-                {overview.data.retries_saved} retries saved
-              </span>
-            )}
-          </div>
-        </section>
+        {activeTab === "overview" && (
+          <OverviewView
+            data={overview.data}
+            isLoading={overview.isLoading}
+            onSelectPattern={handleJumpToPattern}
+          />
+        )}
+        {activeTab === "patterns" && (
+          <PatternsView
+            selectedPatternId={selectedPatternId}
+            onSelectPattern={setSelectedPatternId}
+          />
+        )}
+        {activeTab === "export" && <ExportView />}
+        {activeTab === "privacy" && (
+          <PrivacyView health={health.data} overview={overview.data} />
+        )}
       </main>
     </div>
   );

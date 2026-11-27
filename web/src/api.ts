@@ -125,9 +125,14 @@ export interface ExportResponse {
   candidate_count: number;
 }
 
+export interface RedactionHit {
+  category: string;
+  count: number;
+}
+
 export interface ScrubReport {
   scrubbed: string;
-  hits: Record<string, number>;
+  redactions: RedactionHit[];
 }
 
 export interface ConsolidationReport {
