@@ -9,7 +9,7 @@ RUN npm ci
 COPY web ./
 RUN npm run build
 
-FROM rust:1.99.1-slim-bookworm AS builder
+FROM rust:slim-bookworm AS builder
 
 WORKDIR /build
 
