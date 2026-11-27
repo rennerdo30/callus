@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/callus-core", "crates/callus-store"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/rennerdo30/callus"
+publish = false
+
+[workspace.dependencies]
+callus-core = { path = "crates/callus-core" }
+clap = { version = "4.6.10", features = ["derive"] }
+regex = "1.13.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.2"
+thiserror = "2.0.21"
+# Test-only
+assert_cmd = "2.2.2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
