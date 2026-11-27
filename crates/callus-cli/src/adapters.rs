@@ -4,12 +4,14 @@
 use std::{
     fmt::Write as _,
     path::{Path, PathBuf},
+    sync::LazyLock,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use callus_core::{CliKind, OsKind, ShellKind, ToolEvent, ToolPhase};
 use callus_store::IngestOutcome;
 use clap::ValueEnum;
+use regex::Regex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -130,15 +132,53 @@ pub(crate) fn normalize_hook_payload(
     })
 }
 
+static ANSI_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[ -/]*[@-~]").expect("valid ANSI regex"));
+static INJECTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)(</?\s*(?:system|instructions?|assistant|user|tool_call|developer)\b[^>]*>|ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions?|disregard\s+(?:all\s+)?(?:previous|prior)\s+instructions?|system\s+override\s*:?)",
+    )
+    .expect("valid injection regex")
+});
+
+/// Sanitizes any text injected into a coding CLI's `additionalContext` or guard reason:
+/// strips ANSI/control/bidi spoofing chars, collapses newlines, neutralizes prompt-override
+/// directives, and caps length so injected hints stay strictly data-only.
+pub(crate) fn sanitize_injected_hint(raw: &str) -> String {
+    let no_ansi = ANSI_RE.replace_all(raw, "");
+    let cleaned: String = no_ansi
+        .chars()
+        .filter(|&c| {
+            !matches!(
+                c,
+                '\u{200B}'..='\u{200F}'
+                    | '\u{202A}'..='\u{202E}'
+                    | '\u{2066}'..='\u{2069}'
+                    | '\u{FEFF}'
+            ) && (!c.is_control() || matches!(c, '\n' | '\r' | '\t'))
+        })
+        .collect();
+    let single_line = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let neutralized = INJECTION_RE.replace_all(&single_line, "[redacted-directive]");
+    let max_chars = 360;
+    if neutralized.chars().count() > max_chars {
+        let mut out: String = neutralized.chars().take(max_chars - 1).collect();
+        out.push('…');
+        out
+    } else {
+        neutralized.into_owned()
+    }
+}
+
 /// Formats an [`IngestOutcome`] into the stdout JSON expected by each CLI.
 pub(crate) fn format_hook_output(cli: AdapterCli, outcome: &IngestOutcome) -> Option<Value> {
     match outcome {
         IngestOutcome::HintInjected { ranked, .. } => {
+            let safe = sanitize_injected_hint(&ranked.fix.summary);
             let note = format!(
-                "[Callus fix | confidence {:.0}% | worked {}x] {}",
+                "[Callus fix | confidence {:.0}% | worked {}x] {safe}",
                 ranked.confidence * 100.0,
                 ranked.worked_count,
-                ranked.fix.summary
             );
             Some(match cli {
                 AdapterCli::Claude => json!({
@@ -156,7 +196,8 @@ pub(crate) fn format_hook_output(cli: AdapterCli, outcome: &IngestOutcome) -> Op
             })
         }
         IngestOutcome::GuardTriggered { fix } => {
-            let reason = format!("[Callus guard] {}", fix.summary);
+            let safe = sanitize_injected_hint(&fix.summary);
+            let reason = format!("[Callus guard] {safe}");
             Some(match cli {
                 AdapterCli::Claude => json!({
                     "hookSpecificOutput": {
