@@ -1,6 +1,6 @@
 [package]
 name = "callus-store"
-description = "Storage backends for Callus"
+description = "Storage backends for Callus (KnowledgeStore trait and SQLite WAL hybrid store)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,17 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 callus-core.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlite-vec.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

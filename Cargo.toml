@@ -11,18 +11,24 @@ repository = "https://github.com/rennerdo30/callus"
 publish = false
 
 [workspace.dependencies]
+async-trait = "0.1.92"
 callus-core = { path = "crates/callus-core" }
+callus-store = { path = "crates/callus-store" }
 clap = { version = "4.6.10", features = ["derive"] }
 regex = "1.13.2"
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.2"
+sqlite-vec = "0.1.9"
 thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
 # Test-only
 assert_cmd = "2.2.2"
+tempfile = "3.27.0"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 
