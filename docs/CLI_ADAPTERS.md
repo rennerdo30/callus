@@ -36,14 +36,14 @@ Callus supports **four Tier-1 coding CLIs** out of the box. Every adapter transl
 - **Trust note:** `callus init --codex` reminds the user to approve project hooks via `codex /hooks` when installing into a repo-local `.codex/config.toml`.
 - **MCP:** Adds `[mcp_servers.callus]` (`command = "callus"`, `args = ["mcp"]`) to `config.toml`.
 
-### 2.3 Antigravity (`agy` / Antigravity IDE)
-- **Events wired** (in `hooks.json` under top-level `"callus"` key, or packaged as a native `plugins/callus/plugin.json` bundle):
-  - `PreToolUse` (`matcher: "*"`) → `callus hook --cli antigravity --event pre`
-  - `PostToolUse` (`matcher: "*"`) → `callus hook --cli antigravity --event post`
-  - `Stop` → `callus hook --cli antigravity --event stop`
-- **Payload normalization:** Handles Antigravity's **camelCase** protojson fields (`conversationId`, `modelName`, `toolCall.name`, `toolCall.args`, `stepIdx`, `cwd`).
-- **Failure detection:** Classifies `post_ok` vs. `post_failure` from step status/output fields in `PostToolUse`.
-- **MCP:** Registers `callus` in `mcp_config.json`.
+### 2.3 Antigravity (`agy` / Antigravity IDE / T3 Code)
+- **Plugin bundle & events wired** (installed into `~/.gemini/config/plugins/callus/` and initialized T3 Code profiles `~/.t3/userdata/providers/antigravity/*/config/plugins/callus/`, with `hooks.json` under top-level `"callus"` key):
+  - `PreToolUse` (grouped `matcher: "*"` + `hooks: [{ type: "command", ... }]`) → `callus hook --cli antigravity --event pre`
+  - `PostToolUse` (grouped `matcher: "*"` + `hooks: [{ type: "command", ... }]`) → `callus hook --cli antigravity --event post`
+  - `Stop` (flat handler list) → `callus hook --cli antigravity --event stop`
+- **Payload normalization:** Handles Antigravity's **camelCase** protojson fields (`conversationId`, `modelName`, `toolCall.id`, `toolCall.name`, `toolCall.args`, `stepIdx`, `cwd`, `workspacePaths`, `error`).
+- **Failure detection:** Classifies `post_ok` vs. `post_failure` from `error`/status/output fields in `PostToolUse` and returns valid `{}` protojson on `PostToolUse`/`Stop`.
+- **MCP & Skill:** Registers `callus` in `plugins/callus/mcp_config.json` and bundles `plugins/callus/skills/callus/SKILL.md`.
 
 ### 2.4 OpenCode
 - **Plugin bridge:** `callus init --opencode` generates a lightweight (~30-line) TypeScript plugin at `~/.config/opencode/plugins/callus.ts` and enables it in `opencode.json`.

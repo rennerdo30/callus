@@ -91,6 +91,11 @@ pub(crate) fn normalize_hook_payload(
     let timestamp =
         str_field(payload, &["timestamp", "createdAt"]).map_or_else(now_iso_utc, str::to_owned);
     let event_id = str_field(payload, &["event_id", "eventId", "tool_use_id", "callId"])
+        .or_else(|| {
+            payload
+                .get("toolCall")
+                .and_then(|tc| str_field(tc, &["id"]))
+        })
         .map_or_else(
             || {
                 format!(
@@ -187,9 +192,11 @@ pub(crate) fn format_hook_output(cli: AdapterCli, outcome: &IngestOutcome) -> Op
                         "additionalContext": note,
                     }
                 }),
-                AdapterCli::Codex | AdapterCli::Antigravity => json!({
+                AdapterCli::Codex => json!({
                     "additionalContext": note,
                 }),
+                // Antigravity PostToolUse protojson contract expects an empty `{}` object.
+                AdapterCli::Antigravity => json!({}),
                 AdapterCli::Opencode => json!({
                     "hint": note,
                 }),
@@ -316,7 +323,15 @@ fn extract_antigravity(v: &Value) -> Extracted {
         .to_owned();
     let model = str_field(v, &["modelName", "model"]).map(str::to_owned);
     let version = str_field(v, &["cliVersion", "version"]).map(str::to_owned);
-    let cwd = str_field(v, &["cwd", "workspacePath"]).map(str::to_owned);
+    let cwd = str_field(v, &["cwd", "workspacePath"])
+        .or_else(|| {
+            v.get("workspacePaths")
+                .and_then(Value::as_array)
+                .and_then(|arr| arr.first())
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+        })
+        .map(str::to_owned);
     let tool_call = v.get("toolCall");
     let tool = tool_call
         .and_then(|tc| str_field(tc, &["name", "toolName"]))

@@ -92,6 +92,9 @@ fn run_inner(args: Args) -> Result<(), String> {
         // Stop event: prune local short-retention episodes older than 7 days.
         let cutoff = iso_utc_days_ago(7);
         let _ = rt.block_on(store.prune_episodes_before(&cutoff));
+        if args.cli == AdapterCli::Antigravity {
+            write_stdout_json(&serde_json::json!({}))?;
+        }
         return Ok(());
     };
 
@@ -102,6 +105,9 @@ fn run_inner(args: Args) -> Result<(), String> {
             .block_on(store.list_active_guards(event.repo_hash.as_deref()))
             .map_err(|e| format!("guard query failed: {e}"))?;
         if guards.is_empty() {
+            if args.cli == AdapterCli::Antigravity {
+                write_stdout_json(&serde_json::json!({}))?;
+            }
             return Ok(());
         }
     }
@@ -110,6 +116,13 @@ fn run_inner(args: Args) -> Result<(), String> {
         .get("cwd")
         .or_else(|| payload.get("workspacePath"))
         .and_then(Value::as_str)
+        .or_else(|| {
+            payload
+                .get("workspacePaths")
+                .and_then(Value::as_array)
+                .and_then(|arr| arr.first())
+                .and_then(Value::as_str)
+        })
         .map(str::to_owned);
     let scrubber = Scrubber::new(&ScrubberConfig {
         repo_root,
@@ -124,12 +137,17 @@ fn run_inner(args: Args) -> Result<(), String> {
         .map_err(|e| format!("ingest failed: {e}"))?;
 
     if let Some(output) = format_hook_output(args.cli, &outcome) {
-        let mut line =
-            serde_json::to_string(&output).map_err(|e| format!("serialize failed: {e}"))?;
-        line.push('\n');
-        std::io::stdout()
-            .write_all(line.as_bytes())
-            .map_err(|e| format!("stdout write failed: {e}"))?;
+        write_stdout_json(&output)?;
+    } else if args.cli == AdapterCli::Antigravity {
+        write_stdout_json(&serde_json::json!({}))?;
     }
     Ok(())
+}
+
+fn write_stdout_json(value: &Value) -> Result<(), String> {
+    let mut line = serde_json::to_string(value).map_err(|e| format!("serialize failed: {e}"))?;
+    line.push('\n');
+    std::io::stdout()
+        .write_all(line.as_bytes())
+        .map_err(|e| format!("stdout write failed: {e}"))
 }

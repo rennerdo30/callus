@@ -135,7 +135,8 @@ fn codex_antigravity_and_opencode_adapters_classify_failures_and_guards() {
     let agy_pre = json!({
         "conversationId": "conv-1",
         "modelName": "gemini-4-neon",
-        "toolCall": { "name": "run_command", "args": { "CommandLine": "python - << 'EOF'" } },
+        "workspacePaths": ["/tmp/demo-repo"],
+        "toolCall": { "id": "toolu_01", "name": "run_command", "args": { "CommandLine": "python - << 'EOF'" } },
         "stepIdx": 3
     });
     let out = callus()
@@ -149,6 +150,39 @@ fn codex_antigravity_and_opencode_adapters_classify_failures_and_guards() {
         .clone();
     let parsed: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(parsed["decision"], "deny");
+
+    // Antigravity PostToolUse failure & Stop return valid `{}` JSON per hooks.md protojson contract.
+    let agy_post = json!({
+        "conversationId": "conv-1",
+        "modelName": "gemini-4-neon",
+        "workspacePaths": ["/tmp/demo-repo"],
+        "toolCall": { "id": "toolu_02", "name": "run_command", "args": { "CommandLine": "false" } },
+        "stepIdx": 4,
+        "error": "exit status 1"
+    });
+    let out = callus()
+        .args(["hook", "--cli", "antigravity", "--event", "post", "--db"])
+        .arg(&db)
+        .write_stdin(agy_post.to_string())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(serde_json::from_slice::<Value>(&out).unwrap(), json!({}));
+
+    let out = callus()
+        .args(["hook", "--cli", "antigravity", "--event", "stop", "--db"])
+        .arg(&db)
+        .write_stdin(
+            r#"{"conversationId":"conv-1","executionNum":1,"terminationReason":"NO_TOOL_CALL"}"#,
+        )
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(serde_json::from_slice::<Value>(&out).unwrap(), json!({}));
 
     // OpenCode PostToolUse with failure + recovery + repeat failure -> {"hint": "..."}
     let oc_fail = json!({
@@ -360,7 +394,20 @@ timeout = 5
         let hooks: Value =
             serde_json::from_str(&std::fs::read_to_string(plugin_dir.join("hooks.json")).unwrap())
                 .unwrap();
-        assert!(hooks.get("callus").is_some());
+        assert_eq!(hooks["callus"]["PreToolUse"][0]["matcher"], "*");
+        assert_eq!(
+            hooks["callus"]["PreToolUse"][0]["hooks"][0]["command"],
+            "callus hook --cli antigravity --event pre"
+        );
+        assert_eq!(hooks["callus"]["PostToolUse"][0]["matcher"], "*");
+        assert_eq!(
+            hooks["callus"]["PostToolUse"][0]["hooks"][0]["command"],
+            "callus hook --cli antigravity --event post"
+        );
+        assert_eq!(
+            hooks["callus"]["Stop"][0]["command"],
+            "callus hook --cli antigravity --event stop"
+        );
     }
     let legacy_hooks: Value =
         serde_json::from_str(&std::fs::read_to_string(gemini_cfg.join("hooks.json")).unwrap())

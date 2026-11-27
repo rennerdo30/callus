@@ -468,15 +468,19 @@ fn antigravity_hooks_value() -> Value {
     json!({
         "PreToolUse": [{
             "matcher": "*",
-            "type": "command",
-            "command": "callus hook --cli antigravity --event pre",
-            "timeout": 10
+            "hooks": [{
+                "type": "command",
+                "command": "callus hook --cli antigravity --event pre",
+                "timeout": 10
+            }]
         }],
         "PostToolUse": [{
             "matcher": "*",
-            "type": "command",
-            "command": "callus hook --cli antigravity --event post",
-            "timeout": 10
+            "hooks": [{
+                "type": "command",
+                "command": "callus hook --cli antigravity --event post",
+                "timeout": 10
+            }]
         }],
         "Stop": [{
             "type": "command",
