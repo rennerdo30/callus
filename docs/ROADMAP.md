@@ -9,15 +9,15 @@ Every milestone is shippable, testable, and verifiable on its own.
 **Goal:** A working single Rust binary (`callus`) running locally on Windows, macOS, and Linux with SQLite (`FTS5` + `sqlite-vec` + graph), zero-GPU external `llama.cpp` support, client-side scrubbing, and all 4 CLI adapters.
 
 ### Deliverables
-- [ ] Cargo workspace & crate structure (`callus-core`, `callus-store`, `callus-cli`)
-- [ ] `KnowledgeStore` trait + **SQLite (WAL)** implementation (`FTS5` + `sqlite-vec` + `graph_nodes` / `graph_edges` + migrations)
-- [ ] Client-side **privacy scrubber** (secrets, tokens, paths, usernames, IPs) + `callus scrub-test` + exhaustive unit tests
-- [ ] External **`llama.cpp` HTTP embedding client** (`EMBEDDING_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIMS`, `EMBEDDING_API_KEY`) with strict timeout & graceful BM25+Graph fallback
-- [ ] **Failure → Recovery pairing** engine + **closed-loop feedback** + hybrid ranking (`RRF(BM25, Vector) × Graph × Wilson × Decay`)
-- [ ] Normalized **4-CLI hook adapters** (`claude`, `codex`, `antigravity`, `opencode`) + `callus init` (`--dry-run`, `--uninstall`)
-- [ ] Official Rust MCP server via **`rmcp`** (`callus_search`, `callus_report`, `callus_feedback`, `callus_export_candidates`)
-- [ ] `callus export` for token-budgeted `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` diffs + deterministic `PreToolUse` guards
-- [ ] GitHub Actions CI on **GitHub-hosted runners** (Linux, Windows, macOS: `cargo test`, `clippy`, `fmt`)
+- [x] Cargo workspace & crate structure (`callus-core`, `callus-store`, `callus-cli`)
+- [x] `KnowledgeStore` trait + **SQLite (WAL)** implementation (`FTS5` + `sqlite-vec` + `graph_nodes` / `graph_edges` + migrations)
+- [x] Client-side **privacy scrubber** (secrets, tokens, paths, usernames, IPs) + `callus scrub-test` + exhaustive unit tests
+- [x] External **`llama.cpp` HTTP embedding client** (`EMBEDDING_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIMS`, `EMBEDDING_API_KEY`) with strict timeout & graceful BM25+Graph fallback
+- [x] **Failure → Recovery pairing** engine + **closed-loop feedback** + hybrid ranking (`RRF(BM25, Vector) × Graph × Wilson × Decay`)
+- [x] Normalized **4-CLI hook adapters** (`claude`, `codex`, `antigravity`, `opencode`) + `callus init` (`--dry-run`, `--uninstall`)
+- [x] Official Rust MCP server via **`rmcp`** (`callus_search`, `callus_report`, `callus_feedback`, `callus_export_candidates`)
+- [x] `callus export` for token-budgeted `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` diffs + deterministic `PreToolUse` guards
+- [x] GitHub Actions CI on **GitHub-hosted runners** (Linux, Windows, macOS: `cargo test`, `clippy`, `fmt`)
 
 ### Acceptance Criteria
 - `callus hook` completes in **< 10 ms p95** locally (without blocking on remote embedder).
