@@ -31,6 +31,7 @@ use crate::{
     hook::{configured_dims, resolve_db_path},
     mcp::CallusMcpServer,
     sync::{SyncPullResponse, SyncPushRequest, SyncPushResponse},
+    worker::{consolidate_once, spawn_worker},
 };
 
 #[derive(Debug, clap::Args)]
@@ -50,6 +51,9 @@ pub(crate) struct Args {
     /// Max PostgreSQL pool connections (`LiteVM` default: 12)
     #[arg(long, default_value_t = 12)]
     max_connections: u32,
+    /// Background consolidation interval in seconds (`0` disables automatic loop)
+    #[arg(long, default_value_t = 30)]
+    worker_interval_secs: u64,
 }
 
 #[derive(Clone)]
@@ -174,6 +178,7 @@ pub(crate) fn build_router(state: AppState) -> Router {
         .route("/api/v1/scrub-test", post(scrub_test))
         .route("/api/v1/sync/push", post(sync_push))
         .route("/api/v1/sync/pull", get(sync_pull))
+        .route("/api/v1/admin/consolidate", post(run_consolidation))
         .nest_service("/mcp", mcp_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), bearer_auth));
 
@@ -565,6 +570,11 @@ async fn sync_pull(
     .into_response()
 }
 
+async fn run_consolidation(State(state): State<AppState>) -> Response {
+    let report = consolidate_once(state.engine.store(), &state.embedder, 90, &now_iso_utc()).await;
+    Json(report).into_response()
+}
+
 pub(crate) fn run(args: Args) -> Result<(), CallusError> {
     let bind_raw = std::env::var("CALLUS_BIND")
         .ok()
@@ -626,6 +636,12 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             (Arc::new(sq), "sqlite")
         };
+
+        let interval_secs = std::env::var("CALLUS_WORKER_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(args.worker_interval_secs);
+        spawn_worker(Arc::clone(&store), Arc::clone(&embedder), interval_secs);
 
         let state = AppState {
             engine: Arc::new(LearningEngine::new(store, EngineConfig::default())),

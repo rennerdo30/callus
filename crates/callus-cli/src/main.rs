@@ -8,6 +8,7 @@ mod mcp;
 mod scrub_test;
 mod server;
 mod sync;
+mod worker;
 
 use std::process::ExitCode;
 

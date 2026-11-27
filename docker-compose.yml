@@ -1,0 +1,65 @@
+# Callus LiteVM Production Stack (10+ concurrent users, target <= 200 MB RAM total)
+# Zero GPU required: embeddings optionally connect to an external llama.cpp server.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-callus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-callus_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-callus}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - max_connections=32
+    volumes:
+      - callus_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-callus} -d ${POSTGRES_DB:-callus}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${CALLUS_PORT:-8080}:8080"
+    environment:
+      CALLUS_BIND: 0.0.0.0:8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-callus}:${POSTGRES_PASSWORD:-callus_change_me}@postgres:5432/${POSTGRES_DB:-callus}
+      CALLUS_API_TOKEN: ${CALLUS_API_TOKEN:-}
+      CALLUS_DB_MAX_CONNECTIONS: ${CALLUS_DB_MAX_CONNECTIONS:-12}
+      CALLUS_WORKER_INTERVAL_SECS: ${CALLUS_WORKER_INTERVAL_SECS:-30}
+      # External llama.cpp /v1/embeddings endpoint (leave EMBEDDING_URL empty for pure BM25 + Graph)
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-none}
+      EMBEDDING_URL: ${EMBEDDING_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-small-en-v1.5}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-384}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_TIMEOUT_MS: ${EMBEDDING_TIMEOUT_MS:-1500}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  callus_pgdata:

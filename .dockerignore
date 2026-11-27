@@ -1,0 +1,14 @@
+.git
+.gitignore
+.pair-desk.json
+.cargo
+target
+data
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+web/node_modules
+web/dist
