@@ -53,7 +53,7 @@ pub(crate) fn resolve_db_path(explicit: Option<PathBuf>) -> PathBuf {
         .join("callus.db")
 }
 
-fn configured_dims() -> usize {
+pub(crate) fn configured_dims() -> usize {
     std::env::var("EMBEDDING_DIMS")
         .ok()
         .and_then(|v| v.trim().parse::<usize>().ok())

@@ -124,7 +124,7 @@ fn errors_are_reported_without_panicking() {
 
 #[test]
 fn planned_commands_say_so() {
-    for command in ["mcp", "serve", "sync", "export"] {
+    for command in ["serve", "sync"] {
         let output = callus().arg(command).assert().code(1);
         let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
         assert!(
@@ -132,10 +132,6 @@ fn planned_commands_say_so() {
             "{stderr}"
         );
     }
-    callus()
-        .args(["export", "--format", "agents-md"])
-        .assert()
-        .code(1);
 }
 
 #[test]

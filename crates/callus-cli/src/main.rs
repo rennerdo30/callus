@@ -1,14 +1,16 @@
 //! The `callus` binary.
 
 mod adapters;
+mod export;
 mod hook;
 mod init;
+mod mcp;
 mod scrub_test;
 
 use std::process::ExitCode;
 
 use callus_core::CallusError;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 /// Local-first mistake memory, guard and rule compiler for AI coding CLIs.
 #[derive(Debug, Parser)]
@@ -24,27 +26,16 @@ enum Command {
     Init(init::Args),
     /// Run one hook event from stdin (fail-open, <10ms local hot path)
     Hook(hook::Args),
-    /// Run the MCP server over stdio (planned)
-    Mcp,
-    /// Run the HTTP API, MCP endpoint, sync and web UI (planned)
+    /// Run the official Rust MCP server (`rmcp`) over stdio
+    Mcp(mcp::Args),
+    /// Run the HTTP API, MCP endpoint, sync and web UI (planned for v0.2)
     Serve,
-    /// Sync scoped knowledge with a central server (planned)
+    /// Sync scoped knowledge with a central server (planned for v0.2)
     Sync,
-    /// Export rule diffs, guard hooks or rule packs (planned)
-    Export {
-        #[arg(long, value_enum)]
-        format: Option<ExportFormat>,
-    },
+    /// Export budgeted rule diffs, deterministic guard hooks, or rule packs
+    Export(export::Args),
     /// Show what the privacy scrubber redacts in a text
     ScrubTest(scrub_test::Args),
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum ExportFormat {
-    AgentsMd,
-    ClaudeMd,
-    Hooks,
-    Pack,
 }
 
 fn run(command: Command) -> Result<(), CallusError> {
@@ -55,10 +46,10 @@ fn run(command: Command) -> Result<(), CallusError> {
             hook::run(args);
             return Ok(());
         }
-        Command::Mcp => "mcp",
+        Command::Mcp(args) => return mcp::run(args),
+        Command::Export(args) => return export::run(args),
         Command::Serve => "serve",
         Command::Sync => "sync",
-        Command::Export { .. } => "export",
     };
     Err(CallusError::NotImplemented(planned))
 }
