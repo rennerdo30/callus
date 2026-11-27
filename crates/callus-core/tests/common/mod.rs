@@ -33,6 +33,7 @@ pub fn config() -> ScrubberConfig {
         home_dir: Some(HOME.to_owned()),
         extra_hostnames: vec!["buildbox".to_owned()],
         deny_regexes: vec![r"(?i)project[- ]falcon".to_owned()],
+        ..ScrubberConfig::default()
     }
 }
 

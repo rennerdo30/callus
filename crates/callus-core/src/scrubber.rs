@@ -19,6 +19,8 @@ pub struct ScrubberConfig {
     pub repo_root: Option<String>,
     pub home_dir: Option<String>,
     pub extra_hostnames: Vec<String>,
+    /// Optional bare usernames to redact at word boundaries (`<REDACTED:USER>`).
+    pub extra_usernames: Vec<String>,
     /// Applied after the built-in rules, so they cannot weaken them.
     pub deny_regexes: Vec<String>,
 }
@@ -34,6 +36,7 @@ pub enum RedactionCategory {
     HighEntropy,
     RepoPath,
     HomePath,
+    Username,
     Email,
     Ip,
     Host,
@@ -51,6 +54,7 @@ impl RedactionCategory {
             Self::HighEntropy => "<REDACTED:HIGH_ENTROPY>",
             Self::RepoPath => "<REPO>",
             Self::HomePath => "<HOME>",
+            Self::Username => "<REDACTED:USER>",
             Self::Email => "<REDACTED:EMAIL>",
             Self::Ip => "<REDACTED:IP>",
             Self::Host => "<REDACTED:HOST>",
@@ -83,10 +87,12 @@ struct Rule {
     filter: Filter,
 }
 
-/// Pre-compiled redaction pipeline; build once, reuse for every text.
+/// Pre-compiled redaction pipeline; static built-in rules compile once per process.
 #[derive(Debug)]
 pub struct Scrubber {
-    rules: Vec<Rule>,
+    paths: Vec<Rule>,
+    identities: Vec<Rule>,
+    custom: Vec<Rule>,
 }
 
 static PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| {
@@ -96,6 +102,130 @@ static KEYWORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)secret|token|key|passw(?:or)?d|credential|auth|bearer")
         .expect("keyword pattern must compile")
 });
+
+static STATIC_SECRET_RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
+    use RedactionCategory as C;
+    vec![
+        static_rule(
+            C::PrivateKey,
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|\z)",
+            always,
+        ),
+        static_rule(C::Secret, PROVIDER_KEYS, always),
+        static_rule(
+            C::Auth,
+            r#"(?i)authorization\\*["']?\s*[:=]\s*\\*["']?(?:(?:bearer|basic|token|apikey)\s+)?(?P<v>[^\s"',;<]{6,})"#,
+            |text, range| !is_scheme_name(&text[range]),
+        ),
+        static_rule(
+            C::Auth,
+            r"(?i)(?-u:\b)(?:bearer|basic)[ \t]+(?P<v>[A-Za-z0-9._~+/\-]{8,}=*)",
+            |text, range| !is_plain_word(&text[range]),
+        ),
+        static_rule(
+            C::Auth,
+            r#"[A-Za-z][A-Za-z0-9+.\-]*://(?P<v>[^\s/?#"'<>]+)@"#,
+            always,
+        ),
+        // Passwords with an unescaped `/`, `?` or `#`; `host:8080/@x` is a port.
+        static_rule(
+            C::Auth,
+            r#"[A-Za-z][A-Za-z0-9+.\-]*://(?P<v>[^\s/?#"'<>:@]*:[^\s"'<>@]+)@"#,
+            |text, range| {
+                let password = text[range].split_once(':').map_or("", |(_, rest)| rest);
+                let after_digits = password.trim_start_matches(|c: char| c.is_ascii_digit());
+                !after_digits.starts_with(['/', '?', '#'])
+            },
+        ),
+        static_rule(
+            C::Jwt,
+            r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]*(?:\.[A-Za-z0-9_\-]+){0,2}",
+            always,
+        ),
+        // XML config secret elements (`<password>...</password>`, `<apiKey>...</apiKey>`, etc.).
+        static_rule(
+            C::EnvSecret,
+            r"(?i)<(?:passw(?:or)?d|secret|token|api[_-]?key|private[_-]?key|access[_-]?key)\b[^>]*>(?P<v>[^<\r\n]+)</(?:passw(?:or)?d|secret|token|api[_-]?key|private[_-]?key|access[_-]?key)>",
+            always,
+        ),
+        // Command line flags with a space or `=` before the value.
+        static_rule(
+            C::EnvSecret,
+            &format!(
+                r#"(?i)(?:^|[\s"'])--?(?:token|password|passwd|secret|api[_-]?key|client[_-]?secret|auth[_-]?token|access[_-]?(?:token|key)|private[_-]?key)(?:[ \t]*=[ \t]*|[ \t]+)(?P<v>{QUOTED}|["'`]?[^\s"'`\-][^\s"'`]*)"#
+            ),
+            always,
+        ),
+        // `KEY=value`, `key: value`, `"key": "value"`, including `*_PASS` and `*_PWD`.
+        static_rule(
+            C::EnvSecret,
+            &format!(
+                r#"(?i)[A-Za-z0-9_\-]*(?:api[_-]?key|secret|token|passw(?:or)?d|[_-](?:pass|pwd)\b|private[_-]?key|access[_-]?key|database[_-]?url)[A-Za-z0-9_\-]*(?:\\*["'])?[ \t]*(?:=>|:=|=|:)[ \t]*(?:\\+["'])?(?P<v>{QUOTED}|["'`]?[^\s"'`]+)"#
+            ),
+            is_assigned_secret,
+        ),
+    ]
+});
+
+static STATIC_IDENTITY_RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
+    use RedactionCategory as C;
+    // Any user's home. "Jane Doe" needs capitalised extra words that end at
+    // a separator, quote or line end, so that prose after a name survives.
+    let spaced = r#"[^\\/\s:*?"<>|]+(?: [\p{Lu}\d(][^\\/\s:*?"'<>|]*){1,3}"#;
+    let single = r#"[^\\/\s:*?"<>|]*[^\\/\s:*?"<>|'.,;)\]`]"#;
+    vec![
+        static_rule(
+            C::HomePath,
+            &format!(r#"(?P<v>{USER_DIR}{spaced})(?:[\\/"']|(?mR:$))|{USER_DIR}{single}"#),
+            always,
+        ),
+        // Encoded project slugs such as `C--Users-alice-projects-app` or `-home-bob-repo`.
+        static_rule(
+            C::HomePath,
+            r#"(?:^|[\s"'/\\(=])(?P<v>(?:(?i:[a-z]--users)|-(?:Users|home))-[A-Za-z0-9._]+)(?:[-\\/\s"'`)]|$)"#,
+            always,
+        ),
+        static_rule(
+            C::Email,
+            r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}",
+            |text, range| !is_asset_or_version(&text[range]),
+        ),
+        static_rule(C::Ip, r"(?:\d{1,3}\.){3}\d{1,3}", is_private_ipv4),
+        static_rule(
+            C::Ip,
+            // Ends in a group or `::`, never in the single `:` of a message.
+            r"[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){0,6}(?:::|:[0-9A-Fa-f]{1,4})(?:%[A-Za-z0-9_\-]+)?",
+            is_private_ipv6,
+        ),
+        static_rule(
+            C::Host,
+            r"(?i)(?:[a-z0-9_\-]+\.)+(?:local|internal|corp|lan|home\.arpa)",
+            |text, range| {
+                // `.env.local` and `threading.local` are code, not machines.
+                let name = &text[range.clone()];
+                !text[..range.start].ends_with('.')
+                    && !name.eq_ignore_ascii_case("threading.local")
+                    && is_bounded(text, range)
+            },
+        ),
+    ]
+});
+
+static STATIC_HEURISTIC_RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
+    vec![static_rule(
+        RedactionCategory::HighEntropy,
+        r"[A-Za-z0-9+/_\-]{20,}={0,2}",
+        is_keyed_high_entropy,
+    )]
+});
+
+fn static_rule(category: RedactionCategory, pattern: &str, filter: Filter) -> Rule {
+    Rule {
+        category,
+        regex: Regex::new(pattern).expect("built-in scrubber pattern must compile"),
+        filter,
+    }
+}
 
 const PROVIDER_KEYS: &str = concat!(
     r"(?:AKIA|ASIA)[0-9A-Z]{16,}|gh[pousr]_[A-Za-z0-9_]{16,}|github_pat_[A-Za-z0-9_]{20,}",
@@ -113,123 +243,22 @@ const USER_DIR: &str = r"(?:(?:(?i:[a-z]:|(?:/mnt|/cygdrive)?/[a-z])[\\/]+(?i:us
 
 impl Scrubber {
     pub fn new(config: &ScrubberConfig) -> Result<Self, CallusError> {
-        // Order matters: structured secrets first, heuristics and user rules last.
-        let mut scrubber = Self { rules: Vec::new() };
-        scrubber.add_secret_rules()?;
-        scrubber.add_identity_rules(config)?;
-        scrubber.add(
-            RedactionCategory::HighEntropy,
-            r"[A-Za-z0-9+/_\-]{20,}={0,2}",
-            is_keyed_high_entropy,
-        )?;
-        for pattern in &config.deny_regexes {
-            scrubber.add(RedactionCategory::Custom, pattern, always)?;
-        }
-        Ok(scrubber)
-    }
-
-    fn add(
-        &mut self,
-        category: RedactionCategory,
-        pattern: &str,
-        filter: Filter,
-    ) -> Result<(), regex::Error> {
-        self.rules.push(Rule {
-            category,
-            regex: Regex::new(pattern)?,
-            filter,
-        });
-        Ok(())
-    }
-
-    fn add_secret_rules(&mut self) -> Result<(), regex::Error> {
         use RedactionCategory as C;
-        self.add(
-            C::PrivateKey,
-            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|\z)",
-            always,
-        )?;
-        self.add(C::Secret, PROVIDER_KEYS, always)?;
-        self.add(
-            C::Auth,
-            r#"(?i)authorization\\*["']?\s*[:=]\s*\\*["']?(?:(?:bearer|basic|token|apikey)\s+)?(?P<v>[^\s"',;<]{6,})"#,
-            |text, range| !is_scheme_name(&text[range]),
-        )?;
-        self.add(
-            C::Auth,
-            r"(?i)(?-u:\b)(?:bearer|basic)[ \t]+(?P<v>[A-Za-z0-9._~+/\-]{8,}=*)",
-            |text, range| !is_plain_word(&text[range]),
-        )?;
-        self.add(
-            C::Auth,
-            r#"[A-Za-z][A-Za-z0-9+.\-]*://(?P<v>[^\s/?#"'<>]+)@"#,
-            always,
-        )?;
-        // Passwords with an unescaped `/`, `?` or `#`; `host:8080/@x` is a port.
-        self.add(
-            C::Auth,
-            r#"[A-Za-z][A-Za-z0-9+.\-]*://(?P<v>[^\s/?#"'<>:@]*:[^\s"'<>@]+)@"#,
-            |text, range| {
-                let password = text[range].split_once(':').map_or("", |(_, rest)| rest);
-                let after_digits = password.trim_start_matches(|c: char| c.is_ascii_digit());
-                !after_digits.starts_with(['/', '?', '#'])
-            },
-        )?;
-        self.add(
-            C::Jwt,
-            r"eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]*(?:\.[A-Za-z0-9_\-]+){0,2}",
-            always,
-        )?;
-        // Command line flags with a space or `=` before the value.
-        self.add(
-            C::EnvSecret,
-            &format!(
-                r#"(?i)(?:^|[\s"'])--?(?:token|password|passwd|secret|api[_-]?key|client[_-]?secret|auth[_-]?token|access[_-]?(?:token|key)|private[_-]?key)(?:[ \t]*=[ \t]*|[ \t]+)(?P<v>{QUOTED}|["'`]?[^\s"'`\-][^\s"'`]*)"#
-            ),
-            always,
-        )?;
-        // `KEY=value`, `key: value`, `"key": "value"`.
-        self.add(
-            C::EnvSecret,
-            &format!(
-                r#"(?i)[A-Za-z0-9_\-]*(?:api[_-]?key|secret|token|passw(?:or)?d|private[_-]?key|access[_-]?key|database[_-]?url)[A-Za-z0-9_\-]*(?:\\*["'])?[ \t]*(?:=>|:=|=|:)[ \t]*(?:\\+["'])?(?P<v>{QUOTED}|["'`]?[^\s"'`]+)"#
-            ),
-            is_assigned_secret,
-        )
-    }
-
-    /// Paths, addresses and machine names.
-    fn add_identity_rules(&mut self, config: &ScrubberConfig) -> Result<(), regex::Error> {
-        use RedactionCategory as C;
+        let mut path_rules = Vec::new();
         for (category, root) in [
             (C::RepoPath, &config.repo_root),
             (C::HomePath, &config.home_dir),
         ] {
             if let Some(pattern) = root.as_deref().and_then(root_pattern) {
-                self.add(category, &pattern, ends_name)?;
+                path_rules.push(Rule {
+                    category,
+                    regex: Regex::new(&pattern)?,
+                    filter: ends_name,
+                });
             }
         }
-        // Any user's home. "Jane Doe" needs capitalised extra words that end at
-        // a separator, quote or line end, so that prose after a name survives.
-        let spaced = r#"[^\\/\s:*?"<>|]+(?: [\p{Lu}\d(][^\\/\s:*?"'<>|]*){1,3}"#;
-        let single = r#"[^\\/\s:*?"<>|]*[^\\/\s:*?"<>|'.,;)\]`]"#;
-        self.add(
-            C::HomePath,
-            &format!(r#"(?P<v>{USER_DIR}{spaced})(?:[\\/"']|(?mR:$))|{USER_DIR}{single}"#),
-            always,
-        )?;
-        self.add(
-            C::Email,
-            r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}",
-            |text, range| !is_asset_or_version(&text[range]),
-        )?;
-        self.add(C::Ip, r"(?:\d{1,3}\.){3}\d{1,3}", is_private_ipv4)?;
-        self.add(
-            C::Ip,
-            // Ends in a group or `::`, never in the single `:` of a message.
-            r"[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){0,6}(?:::|:[0-9A-Fa-f]{1,4})(?:%[A-Za-z0-9_\-]+)?",
-            is_private_ipv6,
-        )?;
+
+        let mut host_user_rules = Vec::new();
         let hosts: Vec<String> = config
             .extra_hostnames
             .iter()
@@ -238,23 +267,54 @@ impl Scrubber {
             .collect();
         if !hosts.is_empty() {
             let hosts = hosts.join("|");
-            self.add(
-                C::Host,
-                &format!(r"(?i)(?:[a-z0-9_\-]+\.)*(?:{hosts})(?:\.[a-z0-9_\-]+)*"),
-                is_bounded,
-            )?;
+            host_user_rules.push(Rule {
+                category: C::Host,
+                regex: Regex::new(&format!(
+                    r"(?i)(?:[a-z0-9_\-]+\.)*(?:{hosts})(?:\.[a-z0-9_\-]+)*"
+                ))?,
+                filter: is_bounded,
+            });
         }
-        self.add(
-            C::Host,
-            r"(?i)(?:[a-z0-9_\-]+\.)+(?:local|internal|corp|lan|home\.arpa)",
-            |text, range| {
-                // `.env.local` and `threading.local` are code, not machines.
-                let name = &text[range.clone()];
-                !text[..range.start].ends_with('.')
-                    && !name.eq_ignore_ascii_case("threading.local")
-                    && is_bounded(text, range)
-            },
-        )
+
+        let users: Vec<String> = config
+            .extra_usernames
+            .iter()
+            .filter(|u| u.trim().len() >= 2)
+            .map(|u| regex::escape(u.trim()))
+            .collect();
+        if !users.is_empty() {
+            let users = users.join("|");
+            host_user_rules.push(Rule {
+                category: C::Username,
+                regex: Regex::new(&format!(r"(?i)(?:{users})"))?,
+                filter: is_bounded,
+            });
+        }
+
+        let mut custom_rules = Vec::with_capacity(config.deny_regexes.len());
+        for pattern in &config.deny_regexes {
+            custom_rules.push(Rule {
+                category: C::Custom,
+                regex: Regex::new(pattern)?,
+                filter: always,
+            });
+        }
+
+        Ok(Self {
+            paths: path_rules,
+            identities: host_user_rules,
+            custom: custom_rules,
+        })
+    }
+
+    fn all_rules(&self) -> impl Iterator<Item = &Rule> {
+        STATIC_SECRET_RULES
+            .iter()
+            .chain(self.paths.iter())
+            .chain(STATIC_IDENTITY_RULES.iter())
+            .chain(self.identities.iter())
+            .chain(STATIC_HEURISTIC_RULES.iter())
+            .chain(self.custom.iter())
     }
 
     /// Redacts `text`. Scrubbing an already scrubbed text changes nothing.
@@ -265,7 +325,7 @@ impl Scrubber {
         // until stable. Every change removes unredacted text.
         loop {
             let mut changed = false;
-            for rule in &self.rules {
+            for rule in self.all_rules() {
                 if let Some((next, count)) = rule.apply(&scrubbed) {
                     scrubbed = next;
                     *counts.entry(rule.category).or_insert(0) += count;

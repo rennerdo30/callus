@@ -103,8 +103,7 @@ fn run_inner(args: Args) -> Result<(), String> {
     let scrubber = Scrubber::new(&ScrubberConfig {
         repo_root,
         home_dir: std::env::home_dir().map(|p| p.to_string_lossy().into_owned()),
-        extra_hostnames: Vec::new(),
-        deny_regexes: Vec::new(),
+        ..ScrubberConfig::default()
     })
     .map_err(|e| format!("scrubber init failed: {e}"))?;
 

@@ -40,6 +40,7 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         home_dir: std::env::home_dir().map(|home| home.to_string_lossy().into_owned()),
         extra_hostnames: args.hostname,
         deny_regexes: args.deny_regex,
+        ..ScrubberConfig::default()
     })?;
     let input = match (args.text, args.file) {
         (Some(text), _) => text,

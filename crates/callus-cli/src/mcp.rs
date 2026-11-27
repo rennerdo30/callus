@@ -550,8 +550,7 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
             .ok()
             .map(|p| p.to_string_lossy().into_owned()),
         home_dir: std::env::home_dir().map(|p| p.to_string_lossy().into_owned()),
-        extra_hostnames: Vec::new(),
-        deny_regexes: Vec::new(),
+        ..ScrubberConfig::default()
     })?;
 
     let server = CallusMcpServer {
