@@ -219,6 +219,14 @@ async fn import_single_rule(
     Ok(fix.fix_type == FixType::PreToolGuard && fix.guard_regex.is_some())
 }
 
+pub(crate) fn import_pack_file(
+    path: &std::path::Path,
+    force_verify: bool,
+    db: Option<PathBuf>,
+) -> Result<(), CallusError> {
+    import_pack(path, force_verify, db)
+}
+
 fn import_pack(
     path: &std::path::Path,
     force_verify: bool,

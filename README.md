@@ -8,32 +8,47 @@ Run it **100% locally** with embedded SQLite and an embedded React 19 Web UI (`c
 
 ---
 
-## Quickstart
+## Install
 
-### 1. Build or Install
+One command downloads the single `callus` binary (zero Python or Node.js required), adds it to your `PATH`, detects which of `claude`, `codex`, `opencode`, and `agy` (Antigravity) are installed, shows the exact config changes per tool, and asks `[y/N]` before touching each one:
+
+**Windows (PowerShell 5.1 or 7):**
+
+```powershell
+irm https://raw.githubusercontent.com/rennerdo30/callus/main/install.ps1 | iex
+```
+
+**macOS & Linux:**
 
 ```bash
-# Build the embedded React 19 Web UI + single Rust binary
+curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh
+```
+
+**Update or Uninstall** (leaves `~/.callus/callus.db` untouched):
+
+```powershell
+# Windows
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rennerdo30/callus/main/install.ps1))) update
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/rennerdo30/callus/main/install.ps1))) uninstall
+```
+
+```bash
+# macOS & Linux
+curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh -s -- update
+curl -fsSL https://raw.githubusercontent.com/rennerdo30/callus/main/install.sh | sh -s -- uninstall
+```
+
+Every action supports `--dry-run`, `--yes`, `--no-packs`, and explicit tool selection (e.g., `callus install claude codex --yes`). Every edited config file gets a timestamped `.callus-*.bak` backup first.
+
+### Build from Source
+
+```bash
 (cd web && npm ci && npm run build)
 cargo install --path crates/callus-cli --locked
+callus install
 ```
 
-### 2. Wire Up Your Coding CLIs
-
-```bash
-# Preview changes first (non-destructive, creates .bak backups)
-callus init --dry-run
-
-# Install hooks, plugins, and MCP config for Claude Code, Codex, Antigravity, and OpenCode
-callus init
-
-# Optionally import curated MIT community rule packs
-callus pack import packs/windows-pwsh.json
-callus pack import packs/git-basics.json
-callus pack import packs/rust-cargo.json
-```
-
-### 3. Open the Embedded Local Web UI
+### Open the Embedded Local Web UI
 
 ```bash
 callus ui --port 8080
@@ -42,18 +57,22 @@ callus ui --port 8080
 
 Inspect top recurring hotspots, explore the interactive 1–2 hop knowledge graph, verify/deprecate fixes, preview `AGENTS.md` diffs, and test the privacy scrubber directly in your browser.
 
-### 4. Export Clean Rules & Test Privacy Scrubbing
+### Export Clean Rules & Test Privacy Scrubbing
 
 ```bash
 # Export repo-scoped or global rule diffs (zero AGENTS.md bloat)
 callus export --format agents-md --scope all --budget-lines 40
 callus export --format hooks
 
+# Import or inspect curated MIT rule packs
+callus pack import packs/windows-pwsh.json
+callus pack list
+
 # Verify what the client-side scrubber redacts
 echo "DB_PASS=supersecret at C:\Users\alice\app" | callus scrub-test
 ```
 
-### 5. Self-Hosted Team Server (Docker Compose LiteVM, Zero GPU)
+### Self-Hosted Team Server (Docker Compose LiteVM, Zero GPU)
 
 ```bash
 cp .env.example .env

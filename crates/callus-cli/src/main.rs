@@ -4,6 +4,7 @@ mod adapters;
 mod export;
 mod hook;
 mod init;
+mod installer;
 mod mcp;
 mod pack;
 mod scrub_test;
@@ -27,7 +28,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Install hooks/plugins and MCP config for supported CLIs
+    /// Interactive installer for Claude Code, Codex, `OpenCode`, and Antigravity
+    Install(installer::Args),
+    /// Refresh installed Callus hooks, plugins, and MCP entries across CLIs
+    Update(installer::Args),
+    /// Remove Callus hooks, plugins, and MCP entries (leaves ~/.callus data intact)
+    Uninstall(installer::Args),
+    /// Low-level non-interactive hook/plugin/MCP setup (alias for scripted installs)
     Init(init::Args),
     /// Run one hook event from stdin (fail-open, <10ms local hot path)
     Hook(hook::Args),
@@ -49,6 +56,9 @@ enum Command {
 
 fn run(command: Command) -> Result<(), CallusError> {
     match command {
+        Command::Install(args) => installer::run(installer::Action::Install, &args),
+        Command::Update(args) => installer::run(installer::Action::Update, &args),
+        Command::Uninstall(args) => installer::run(installer::Action::Uninstall, &args),
         Command::ScrubTest(args) => scrub_test::run(args),
         Command::Init(args) => init::run(args),
         Command::Hook(args) => {

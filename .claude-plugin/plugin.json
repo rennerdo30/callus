@@ -1,0 +1,32 @@
+{
+  "name": "callus",
+  "displayName": "Callus — Agent Mistake Memory & Guards",
+  "version": "0.1.0",
+  "description": "Local-first self-learning mistake memory, PreToolUse guard, and rule compiler for Claude Code, Codex, Antigravity, and OpenCode. Captures tool failures and recoveries, injects sanitized hints on repeat errors, and exports budgeted AGENTS.md / CLAUDE.md diffs.",
+  "author": {
+    "name": "rennerdo30",
+    "url": "https://github.com/rennerdo30"
+  },
+  "homepage": "https://github.com/rennerdo30/callus",
+  "repository": "https://github.com/rennerdo30/callus",
+  "license": "MIT",
+  "keywords": [
+    "mistake-memory",
+    "hooks",
+    "guards",
+    "mcp",
+    "agents-md",
+    "claude-code",
+    "codex",
+    "antigravity",
+    "opencode"
+  ],
+  "mcpServers": {
+    "callus": {
+      "command": "callus",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

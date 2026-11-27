@@ -114,17 +114,97 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
     }
 
     for cli in selected {
-        match cli {
-            "claude" => configure_claude(&base, args.project, args.dry_run, args.uninstall)?,
-            "codex" => configure_codex(&base, args.project, args.dry_run, args.uninstall)?,
-            "antigravity" => {
-                configure_antigravity(&base, args.project, args.dry_run, args.uninstall)?;
-            }
-            "opencode" => configure_opencode(&base, args.project, args.dry_run, args.uninstall)?,
-            _ => {}
-        }
+        configure_tool(cli, &base, args.project, args.dry_run, args.uninstall)?;
     }
     Ok(())
+}
+
+/// Applies or removes Callus hooks, plugins, and MCP entries for one CLI tool.
+pub(crate) fn configure_tool(
+    cli: &str,
+    base: &Path,
+    project: bool,
+    dry_run: bool,
+    uninstall: bool,
+) -> Result<(), CallusError> {
+    match cli {
+        "claude" => configure_claude(base, project, dry_run, uninstall),
+        "codex" => configure_codex(base, project, dry_run, uninstall),
+        "antigravity" => configure_antigravity(base, project, dry_run, uninstall),
+        "opencode" => configure_opencode(base, project, dry_run, uninstall),
+        _ => Ok(()),
+    }
+}
+
+/// Returns human-readable plan lines describing the exact files touched for `cli`.
+pub(crate) fn describe_tool_plan(
+    cli: &str,
+    base: &Path,
+    project: bool,
+    uninstall: bool,
+) -> Vec<String> {
+    let verb = if uninstall {
+        "remove Callus from"
+    } else {
+        "configure Callus in"
+    };
+    match cli {
+        "claude" => {
+            let settings = base.join(".claude").join("settings.json");
+            let mcp = if project {
+                base.join(".mcp.json")
+            } else {
+                base.join(".claude.json")
+            };
+            vec![
+                format!(
+                    "{verb} {} (PreToolUse, PostToolUse, PostToolUseFailure, Stop hooks)",
+                    settings.display()
+                ),
+                format!("{verb} {} (mcpServers.callus)", mcp.display()),
+            ]
+        }
+        "codex" => {
+            let cfg = base.join(".codex").join("config.toml");
+            vec![format!(
+                "{verb} {} (features.hooks, PreToolUse/PostToolUse hooks, mcp_servers.callus)",
+                cfg.display()
+            )]
+        }
+        "antigravity" => {
+            let hooks = if project {
+                base.join(".agents").join("hooks.json")
+            } else {
+                base.join(".gemini").join("config").join("hooks.json")
+            };
+            let mcp = base.join(".gemini").join("config").join("mcp_config.json");
+            vec![
+                format!(
+                    "{verb} {} (PreToolUse, PostToolUse, Stop hooks)",
+                    hooks.display()
+                ),
+                format!("{verb} {} (mcpServers.callus)", mcp.display()),
+            ]
+        }
+        "opencode" => {
+            let dir = if project {
+                base.join(".opencode")
+            } else {
+                base.join(".config").join("opencode")
+            };
+            let plugin = dir.join("plugins").join("callus.ts");
+            let cfg = dir.join("opencode.json");
+            vec![
+                if uninstall {
+                    format!("remove {}", plugin.display())
+                } else {
+                    format!("write OpenCode plugin {}", plugin.display())
+                },
+                format!("{verb} {} (mcp.callus + plugin entry)", cfg.display()),
+            ]
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn configure_claude(

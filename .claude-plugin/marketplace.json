@@ -1,0 +1,33 @@
+{
+  "name": "callus",
+  "owner": {
+    "name": "rennerdo30",
+    "url": "https://github.com/rennerdo30"
+  },
+  "metadata": {
+    "description": "Callus: local-first mistake memory, PreToolUse guards, and budgeted rule compiler for AI coding agents."
+  },
+  "plugins": [
+    {
+      "name": "callus",
+      "source": "./",
+      "description": "Automatic failure -> recovery learning, PreToolUse guards, MCP tools, and embedded React 19 Web UI for coding CLIs.",
+      "version": "0.1.0",
+      "author": {
+        "name": "rennerdo30",
+        "url": "https://github.com/rennerdo30"
+      },
+      "homepage": "https://github.com/rennerdo30/callus",
+      "repository": "https://github.com/rennerdo30/callus",
+      "license": "MIT",
+      "keywords": [
+        "mistake-memory",
+        "hooks",
+        "guards",
+        "mcp",
+        "agents-md"
+      ],
+      "category": "development"
+    }
+  ]
+}
