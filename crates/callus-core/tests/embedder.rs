@@ -3,8 +3,8 @@
 use std::{collections::HashMap, time::Duration};
 
 use callus_core::{
-    EmbedError, Embedder, EmbeddingConfig, EmbeddingProvider, OpenAiCompatibleEmbedder,
-    build_embedder,
+    EmbedError, Embedder, EmbeddingConfig, EmbeddingProvider, LocalEmbedder, LocalHardware,
+    OpenAiCompatibleEmbedder, build_embedder,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -178,4 +178,102 @@ async fn timeout_and_unreachable_server_degrade_to_none_for_queries() {
     })
     .unwrap();
     assert_eq!(dead_embedder.embed("offline").await.unwrap(), None);
+}
+
+#[test]
+fn hardware_gate_distinguishes_dev_machines_from_litevm_containers() {
+    // Typical dev laptop/desktop (8 cores, 16 GiB RAM, no tight cgroup).
+    let dev = LocalHardware::evaluate(8, 16_384, None);
+    assert!(dev.supported);
+
+    // 1-vCPU LiteVM without GPU -> stay on BM25 + Graph unless EMBEDDING_URL is set.
+    let lite_cpu = LocalHardware::evaluate(1, 4_096, None);
+    assert!(!lite_cpu.supported);
+
+    // Low-RAM host (2 GiB).
+    let low_ram = LocalHardware::evaluate(4, 2_048, None);
+    assert!(!low_ram.supported);
+
+    // Docker LiteVM with 128 MiB cgroup memory cap on a big host -> stay off local model.
+    let lite_container = LocalHardware::evaluate(16, 32_768, Some(128));
+    assert!(!lite_container.supported);
+
+    // Container with generous 2 GiB cgroup cap on capable host -> allowed.
+    let roomy_container = LocalHardware::evaluate(4, 16_384, Some(2_048));
+    assert!(roomy_container.supported);
+}
+
+#[test]
+fn provider_precedence_prefers_explicit_url_and_none_over_local_auto() {
+    // Unset env + capable hardware -> auto-enables built-in local embedder.
+    let auto_local = EmbeddingConfig::from_lookup_with_hardware(|_| None, true).unwrap();
+    assert_eq!(auto_local.provider, EmbeddingProvider::Local);
+    assert_eq!(auto_local.dims, 384);
+
+    // Unset env + constrained hardware -> falls back to None (BM25 + Graph).
+    let auto_none = EmbeddingConfig::from_lookup_with_hardware(|_| None, false).unwrap();
+    assert_eq!(auto_none.provider, EmbeddingProvider::None);
+
+    // EMBEDDING_URL ALWAYS overrides local auto-detect (for remote GPU server integration).
+    let url_env = HashMap::from([("EMBEDDING_URL", "http://gpu-box:8081/v1/embeddings")]);
+    let remote = EmbeddingConfig::from_lookup_with_hardware(
+        |k| url_env.get(k).map(|v| (*v).to_owned()),
+        true,
+    )
+    .unwrap();
+    assert_eq!(remote.provider, EmbeddingProvider::OpenAiCompatible);
+
+    // Explicit EMBEDDING_PROVIDER=none disables local auto-detect.
+    let none_env = HashMap::from([("EMBEDDING_PROVIDER", "none")]);
+    let disabled = EmbeddingConfig::from_lookup_with_hardware(
+        |k| none_env.get(k).map(|v| (*v).to_owned()),
+        true,
+    )
+    .unwrap();
+    assert_eq!(disabled.provider, EmbeddingProvider::None);
+
+    // Explicit EMBEDDING_PROVIDER=local forces local even when hardware gate reports false.
+    let force_env = HashMap::from([("EMBEDDING_PROVIDER", "local")]);
+    let forced = EmbeddingConfig::from_lookup_with_hardware(
+        |k| force_env.get(k).map(|v| (*v).to_owned()),
+        false,
+    )
+    .unwrap();
+    assert_eq!(forced.provider, EmbeddingProvider::Local);
+}
+
+#[tokio::test]
+async fn local_embedder_degrades_gracefully_when_offline_and_uncached() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let dead_addr = listener.local_addr().unwrap();
+    drop(listener);
+
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "callus-local-embedder-offline-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+
+    let embedder =
+        LocalEmbedder::with_endpoint(384, tmp_dir.clone(), &format!("http://{dead_addr}")).unwrap();
+    assert!(embedder.is_enabled());
+    assert_eq!(embedder.provider_name(), "local");
+    assert_eq!(embedder.dims(), 384);
+
+    // Soft embed returns Ok(None) so BM25 + Graph retrieval continues uninterrupted.
+    assert_eq!(embedder.embed("offline test").await.unwrap(), None);
+    // Strict batch surfaces a clear network/local error for diagnostics / backfill.
+    let err = embedder
+        .embed_batch_strict(&["offline test".to_owned()])
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EmbedError::Http(_) | EmbedError::Timeout(_) | EmbedError::Local(_)
+        ),
+        "unexpected error variant: {err:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp_dir);
 }

@@ -4,7 +4,7 @@
 
 **Callus** is a fast, local-first, self-learning mistake memory, guard, and rule compiler for AI coding CLIs. It captures tool failures and their recoveries across **Claude Code**, **OpenAI Codex CLI**, **Antigravity (`agy`)**, and **OpenCode**, builds a hybrid **vector + BM25 + knowledge graph** of what broke and what fixed it, injects live hints on repeat failures, and exports clean `PreToolUse` guards and token-budgeted `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` improvements.
 
-Run it **100% locally** with embedded SQLite and an embedded React 19 Web UI (`callus ui`), or connect your team to a **LiteVM Docker central server** backed by PostgreSQL (`pgvector`) and an external `llama.cpp` embedding endpoint.
+Run it **100% locally** with embedded SQLite, built-in hardware-aware local CPU embeddings (`bge-small-en-v1.5`, 384d, zero GPU required), and an embedded React 19 Web UI (`callus ui`), or connect your team to a **LiteVM Docker central server** backed by PostgreSQL (`pgvector`) and an optional external GPU `llama.cpp` embedding endpoint.
 
 ---
 
@@ -91,7 +91,7 @@ callus sync --server http://your-server:8080 --token "$CALLUS_API_TOKEN"
 1. **Passive capture across 4 CLIs:** Lightweight `< 5 ms` native hooks (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`) + official Rust MCP server (`rmcp`, stdio and Streamable HTTP `/mcp`).
 2. **Automatic failure → recovery learning:** Pairs a failed tool call with the succeeding recovery call in the same session, tagged by `(OS, shell, CLI, model, tool, repo)`.
 3. **Repository-aware isolation & promotion:** New git-repo failures start strictly isolated as `repo`-scoped; generic patterns seen in **≥ 2 distinct repositories** automatically promote to `team`.
-4. **Hybrid Vector + BM25 + Graph retrieval:** Fuses external `llama.cpp` cosine embeddings + FTS5/`tsvector` BM25 via RRF, expands 1–2 graph hops (`OCCURS_IN`, `RESOLVED_BY`, `SUPERSEDED_BY`, `OBSOLETE_IN`), and degrades seamlessly to BM25 + Graph offline.
+4. **Hybrid Vector + BM25 + Graph retrieval:** Automatically enables a fast built-in pure-Rust CPU embedder (`BAAI/bge-small-en-v1.5`, 384d, Apple Accelerate on macOS / SIMD on x86_64) on capable dev hardware (`callus embed --backfill`), lets `EMBEDDING_URL` override to an external GPU `llama.cpp` server, expands 1–2 graph hops (`OCCURS_IN`, `RESOLVED_BY`, `SUPERSEDED_BY`, `OBSOLETE_IN`), and degrades seamlessly to BM25 + Graph offline or on CPU-only LiteVMs.
 5. **Mandatory client-side privacy scrubbing & prompt-injection defense:** Strips API keys, tokens, credentials, usernames, IPs, and absolute paths *before* local write or HTTP sync, and sanitizes every injected hook hint.
 6. **Tiered outputs (zero `AGENTS.md` bloat):** Live failure hints (0 startup tokens), deterministic `PreToolUse` guards, and budgeted `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` diffs with stale-rule prunes.
 
@@ -101,8 +101,8 @@ callus sync --server http://your-server:8080 --token "$CALLUS_API_TOKEN"
 
 | Mode | Runtime | Database | Embeddings | Target Footprint |
 | :--- | :--- | :--- | :--- | :--- |
-| **Local (Dev Machine)** | Single Rust binary (`callus`) | Embedded **SQLite (WAL)**: `FTS5` + `sqlite-vec` + graph tables | External `EMBEDDING_URL` (`llama.cpp`) or BM25+Graph offline fallback | < 30 MB RAM, < 5 ms hook latency |
-| **Central Server (Team / LiteVM)** | Docker Compose (`app` + `postgres`) with embedded React 19 Web UI | **PostgreSQL** (`pgvector` + `tsvector`/`pg_trgm` + graph tables) | External `llama.cpp` server via `EMBEDDING_URL` (CPU or remote GPU) | ≤ 200 MB total RAM for 10+ concurrent users |
+| **Local (Dev Machine)** | Single Rust binary (`callus`) | Embedded **SQLite (WAL)**: `FTS5` + `sqlite-vec` + graph tables | Auto-enabled built-in CPU `bge-small-en-v1.5` (384d), `EMBEDDING_URL` override, or BM25+Graph fallback | < 5 ms hook latency (model never loaded in hooks) |
+| **Central Server (Team / LiteVM)** | Docker Compose (`app` + `postgres`) with embedded React 19 Web UI | **PostgreSQL** (`pgvector` + `tsvector`/`pg_trgm` + graph tables) | Pure BM25 + Graph by default (CPU-only), or external GPU `llama.cpp` server via `EMBEDDING_URL` | ≤ 200 MB total RAM for 10+ concurrent users |
 
 ---
 

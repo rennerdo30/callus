@@ -124,7 +124,14 @@ export function App() {
 
           <div className="order-2 flex items-center gap-2 md:order-3">
             {health.data && (
-              <div className="hidden items-center gap-2 rounded-full border bg-elevated px-3 py-1.5 text-xs sm:flex">
+              <div
+                className="hidden items-center gap-2 rounded-full border bg-elevated px-3 py-1.5 text-xs sm:flex"
+                title={
+                  health.data.embedding_enabled
+                    ? `${health.data.embedding_provider === "local" ? "Local" : "Remote"} ${health.data.embedding_model ?? "embeddings"} (${health.data.embedding_dims}d)`
+                    : "Lexical BM25 + Knowledge Graph"
+                }
+              >
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 <span className="font-mono font-medium uppercase">
                   {health.data.backend}
@@ -132,7 +139,9 @@ export function App() {
                 <span className="text-muted">·</span>
                 <span className="text-muted">
                   {health.data.embedding_enabled
-                    ? `Vector ${health.data.embedding_dims}d`
+                    ? health.data.embedding_provider === "local"
+                      ? `Local ${health.data.embedding_dims}d`
+                      : `Remote ${health.data.embedding_dims}d`
                     : "BM25 + Graph"}
                 </span>
               </div>

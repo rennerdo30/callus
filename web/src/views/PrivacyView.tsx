@@ -166,17 +166,20 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
         <section className="rounded-xl border bg-surface p-5">
           <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight">
             <Sparkles className="h-4.5 w-4.5 text-amber-400" />
-            <span>External llama.cpp Embeddings</span>
+            <span>Vector Embeddings</span>
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-muted">
-            Zero local GPU or PyTorch runtime. Callus connects over HTTP to any
-            OpenAI-compatible{" "}
+            Automatically runs built-in local CPU embeddings (
+            <code className="font-mono text-xs text-ink">bge-small-en-v1.5</code>
+            ) on capable dev hardware with zero GPU dependencies. Set{" "}
+            <code className="font-mono text-xs text-ink">EMBEDDING_URL</code> to
+            connect a CPU-only server to an external GPU{" "}
             <code className="font-mono text-xs text-ink">/v1/embeddings</code>{" "}
-            endpoint and falls back cleanly to BM25 + Graph when offline.
+            host, or fall back cleanly to BM25 + Graph offline.
           </p>
           <div className="mt-3.5 rounded-lg border bg-elevated p-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted">Status</span>
+              <span className="text-muted">Provider</span>
               <span
                 className={`font-mono font-medium ${
                   health?.embedding_enabled
@@ -185,10 +188,20 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
                 }`}
               >
                 {health?.embedding_enabled
-                  ? `Active (${health.embedding_dims}d)`
+                  ? health.embedding_provider === "local"
+                    ? `Local CPU (${health.embedding_dims}d)`
+                    : `Remote HTTP (${health.embedding_dims}d)`
                   : "Offline BM25 + Graph"}
               </span>
             </div>
+            {health?.embedding_enabled && health.embedding_model && (
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-muted">Model</span>
+                <span className="font-mono text-xs text-ink">
+                  {health.embedding_model}
+                </span>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-between">
               <span className="text-muted">Pending Backfill</span>
               <span className="font-mono tabular-nums">
@@ -197,9 +210,11 @@ export function PrivacyView({ health, overview }: PrivacyViewProps) {
             </div>
           </div>
           <pre className="mt-3.5 whitespace-pre-wrap break-all rounded-lg border bg-canvas p-3 font-mono text-xs leading-relaxed text-muted">
-{`EMBEDDING_PROVIDER=openai-compatible
-EMBEDDING_URL=http://llama-host:8081/v1/embeddings
-EMBEDDING_DIMS=${health?.embedding_dims ?? 384}`}
+{`# Override local auto-detect with a remote GPU server:
+EMBEDDING_URL=http://gpu-host:8081/v1/embeddings
+EMBEDDING_DIMS=${health?.embedding_dims ?? 384}
+# Or disable embeddings on a LiteVM:
+EMBEDDING_PROVIDER=none`}
           </pre>
         </section>
       </aside>

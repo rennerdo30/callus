@@ -127,7 +127,9 @@ export function OverviewView({
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="text-base font-semibold tracking-tight">
               {data.embedding_enabled
-                ? `Hybrid Vector (${data.embedding_dims}d)`
+                ? data.embedding_provider === "local"
+                  ? `Local Vector (${data.embedding_dims}d)`
+                  : `Remote Vector (${data.embedding_dims}d)`
                 : "BM25 + Graph"}
             </span>
             <button
@@ -149,8 +151,10 @@ export function OverviewView({
                 {consolidate.data.promoted_patterns} promoted ·{" "}
                 {consolidate.data.obsoleted_fixes} obsoleted
               </span>
+            ) : data.embedding_enabled ? (
+              `${data.embedding_model ?? "vector"} · ${data.pending_embeddings} pending · ${data.backend}`
             ) : (
-              `${data.pending_embeddings} pending embeddings · ${data.backend}`
+              `lexical + graph · ${data.backend}`
             )}
           </div>
         </div>
@@ -207,7 +211,9 @@ export function OverviewView({
                     <p className="truncate font-mono text-[13px] text-muted">
                       {pat.error_template !== pat.title
                         ? pat.error_template
-                        : `sig:${pat.signature_hash.slice(0, 12)} · ${pat.embedding_status} embedding`}
+                        : data.embedding_enabled
+                          ? `sig:${pat.signature_hash.slice(0, 12)} · ${pat.embedding_status} embedding`
+                          : `sig:${pat.signature_hash.slice(0, 12)} · BM25 + Graph`}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 pt-0.5">

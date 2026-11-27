@@ -1,6 +1,7 @@
 //! The `callus` binary.
 
 mod adapters;
+mod embed;
 mod export;
 mod hook;
 mod init;
@@ -50,6 +51,8 @@ enum Command {
     Export(export::Args),
     /// Import, export, or list curated community rule packs
     Pack(pack::Args),
+    /// Inspect or backfill local/remote vector embeddings
+    Embed(embed::Args),
     /// Show what the privacy scrubber redacts in a text
     ScrubTest(scrub_test::Args),
 }
@@ -71,6 +74,7 @@ fn run(command: Command) -> Result<(), CallusError> {
         Command::Sync(args) => sync::run(args),
         Command::Export(args) => export::run(args),
         Command::Pack(args) => pack::run(args),
+        Command::Embed(args) => embed::run(args),
     }
 }
 

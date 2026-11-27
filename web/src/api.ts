@@ -8,6 +8,8 @@ export interface HealthResponse {
   status: string;
   backend: "postgres" | "sqlite" | string;
   embedding_enabled: boolean;
+  embedding_provider?: "local" | "openai-compatible" | "none" | string;
+  embedding_model?: string;
   embedding_dims: number;
   auth_enabled: boolean;
   version: string;
@@ -87,6 +89,8 @@ export interface OverviewResponse {
   obsolete_fix_count: number;
   pending_embeddings: number;
   embedding_enabled: boolean;
+  embedding_provider?: "local" | "openai-compatible" | "none" | string;
+  embedding_model?: string;
   embedding_dims: number;
   backend: string;
   version: string;

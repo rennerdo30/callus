@@ -200,6 +200,8 @@ async fn healthz(State(state): State<AppState>) -> Json<Value> {
         "status": "ok",
         "backend": state.backend,
         "embedding_enabled": state.embedder.is_enabled(),
+        "embedding_provider": state.embedder.provider_name(),
+        "embedding_model": state.embedder.model_name(),
         "embedding_dims": state.engine.store().embedding_dims(),
         "auth_enabled": state.api_token.is_some(),
         "version": env!("CARGO_PKG_VERSION"),
@@ -320,6 +322,8 @@ async fn overview(State(state): State<AppState>) -> Response {
         "obsolete_fix_count": obsolete_fix_count,
         "pending_embeddings": pending,
         "embedding_enabled": state.embedder.is_enabled(),
+        "embedding_provider": state.embedder.provider_name(),
+        "embedding_model": state.embedder.model_name(),
         "embedding_dims": store.embedding_dims(),
         "backend": state.backend,
         "version": env!("CARGO_PKG_VERSION"),
@@ -719,10 +723,10 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         .map(Arc::<str>::from);
 
     let embed_cfg = EmbeddingConfig::from_env().unwrap_or_default();
-    let dims = if embed_cfg.provider == EmbeddingProvider::OpenAiCompatible {
-        embed_cfg.dims
-    } else {
+    let dims = if embed_cfg.provider == EmbeddingProvider::None {
         configured_dims()
+    } else {
+        embed_cfg.dims
     };
     let embedder = build_embedder(&embed_cfg).map_err(|e| CallusError::Io {
         context: "embedder configuration failed".to_owned(),

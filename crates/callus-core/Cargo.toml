@@ -10,15 +10,23 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+candle-core.workspace = true
+candle-nn.workspace = true
+candle-transformers.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+sysinfo.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
+tokenizers.workspace = true
 tokio.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.11.1", features = ["accelerate"] }
+candle-nn = { version = "0.11.1", features = ["accelerate"] }
+candle-transformers = { version = "0.11.1", features = ["accelerate"] }
 
 [lints]
 workspace = true

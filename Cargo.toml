@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/callus-core", "crates/callus-store", "crates/callus-cli"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.99.1"
 license = "MIT"
@@ -15,6 +15,9 @@ async-trait = "0.1.92"
 axum = "0.8.9"
 callus-core = { path = "crates/callus-core" }
 callus-store = { path = "crates/callus-store" }
+candle-core = "0.11.1"
+candle-nn = "0.11.1"
+candle-transformers = "0.11.1"
 clap = { version = "4.6.10", features = ["derive"] }
 mime_guess = "2.0.5"
 regex = "1.13.2"
@@ -27,7 +30,9 @@ serde_json = "1.0.154"
 sha2 = "0.11.2"
 sqlite-vec = "0.1.9"
 sqlx = { version = "0.9.1", default-features = false, features = ["postgres", "runtime-tokio", "tls-native-tls", "json"] }
+sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
 thiserror = "2.0.21"
+tokenizers = { version = "0.23.2", default-features = false, features = ["fancy-regex"] }
 tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
 toml_edit = "0.25.21"
 # Test-only

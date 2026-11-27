@@ -554,10 +554,10 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
     }
 
     let embed_cfg = EmbeddingConfig::from_env().unwrap_or_default();
-    let dims = if embed_cfg.provider == callus_core::EmbeddingProvider::OpenAiCompatible {
-        embed_cfg.dims
-    } else {
+    let dims = if embed_cfg.provider == callus_core::EmbeddingProvider::None {
         configured_dims()
+    } else {
+        embed_cfg.dims
     };
     let embedder = build_embedder(&embed_cfg).map_err(|e| CallusError::Io {
         context: "embedder configuration failed".to_owned(),
@@ -578,8 +578,11 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
     })?;
 
     let server = CallusMcpServer::new(
-        Arc::new(LearningEngine::new(store, EngineConfig::default())),
-        embedder,
+        Arc::new(LearningEngine::new(
+            Arc::clone(&store),
+            EngineConfig::default(),
+        )),
+        Arc::clone(&embedder),
         Arc::new(scrubber),
     );
 
@@ -592,6 +595,9 @@ pub(crate) fn run(args: Args) -> Result<(), CallusError> {
         })?;
 
     rt.block_on(async move {
+        if embedder.is_enabled() {
+            crate::worker::spawn_worker(store, embedder, 60);
+        }
         let running = server
             .serve(rmcp::transport::stdio())
             .await

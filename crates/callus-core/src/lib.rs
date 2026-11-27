@@ -4,6 +4,7 @@
 pub mod domain;
 pub mod embedder;
 pub mod error;
+pub mod local_embedder;
 pub mod scrubber;
 pub mod signature;
 
@@ -14,5 +15,9 @@ pub use embedder::{
     build_embedder,
 };
 pub use error::CallusError;
+pub use local_embedder::{
+    DEFAULT_LOCAL_HF_REPO, LocalEmbedder, LocalHardware, is_local_model_cached,
+    resolve_local_model_dir,
+};
 pub use scrubber::{RedactionCategory, RedactionHit, ScrubResult, Scrubber, ScrubberConfig};
 pub use signature::{compute_signature_hash, normalize_error_template};

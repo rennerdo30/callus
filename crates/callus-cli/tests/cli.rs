@@ -151,8 +151,22 @@ fn help_lists_every_documented_subcommand() {
         "serve",
         "sync",
         "export",
+        "embed",
         "scrub-test",
     ] {
         assert!(out.contains(command), "{command} missing from:\n{out}");
     }
+}
+
+#[test]
+fn embed_subcommand_reports_status_without_network() {
+    let db = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("embed-status.db");
+    let out = stdout(
+        callus()
+            .env("EMBEDDING_PROVIDER", "none")
+            .args(["embed", "--db"])
+            .arg(&db),
+    );
+    assert!(out.contains("Provider:  none"), "{out}");
+    assert!(out.contains("Hardware:"), "{out}");
 }

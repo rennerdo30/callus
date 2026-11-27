@@ -1,13 +1,16 @@
-//! External OpenAI-compatible (`llama.cpp`) embedding client with strict timeouts
-//! and graceful offline fallback.
-//!
-//! Callus never bundles a local GPU runtime; embeddings are requested over HTTP
-//! from an external `/v1/embeddings` server configured via environment variables.
+//! Embedding providers for Callus:
+//! - Built-in pure-Rust local CPU embedder (`BAAI/bge-small-en-v1.5`, 384d via `candle`),
+//!   automatically enabled when the host has sufficient CPU/RAM and no remote URL is set.
+//! - External OpenAI-compatible (`/v1/embeddings`, e.g. `llama.cpp` GPU server) client
+//!   that always takes precedence when `EMBEDDING_URL` is configured.
+//! - Graceful offline `NoopEmbedder` fallback to BM25 + signature + graph.
 
 use std::{fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+use crate::local_embedder::{LocalEmbedder, LocalHardware};
 
 /// Default embedding vector dimensionality (`bge-small-en-v1.5`).
 pub const DEFAULT_EMBEDDING_DIMS: usize = 384;
@@ -20,8 +23,19 @@ pub const DEFAULT_EMBEDDING_TIMEOUT_MS: u64 = 1500;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum EmbeddingProvider {
+    Local,
     OpenAiCompatible,
     None,
+}
+
+impl EmbeddingProvider {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::OpenAiCompatible => "openai-compatible",
+            Self::None => "none",
+        }
+    }
 }
 
 /// Environment-driven embedding configuration.
@@ -62,13 +76,31 @@ impl Default for EmbeddingConfig {
 }
 
 impl EmbeddingConfig {
-    /// Reads embedding settings from standard `EMBEDDING_*` environment variables.
+    /// Reads embedding settings from standard `EMBEDDING_*` environment variables,
+    /// automatically enabling [`EmbeddingProvider::Local`] when the host hardware
+    /// meets minimum CPU/RAM thresholds and no explicit `EMBEDDING_URL`/`EMBEDDING_PROVIDER`
+    /// overrides it.
     pub fn from_env() -> Result<Self, EmbedError> {
-        Self::from_lookup(|key| std::env::var(key).ok())
+        let hw = LocalHardware::detect();
+        Self::from_lookup_with_hardware(|key| std::env::var(key).ok(), hw.supported)
     }
 
-    /// Reads embedding settings from an arbitrary key lookup (testable without mutating env).
+    /// Reads embedding settings from an arbitrary key lookup with local auto-detect disabled
+    /// (deterministic for unit tests).
     pub fn from_lookup<F>(lookup: F) -> Result<Self, EmbedError>
+    where
+        F: Fn(&str) -> Option<String>,
+    {
+        Self::from_lookup_with_hardware(lookup, false)
+    }
+
+    /// Reads embedding settings from `lookup`, enabling [`EmbeddingProvider::Local`] by default
+    /// when `local_hardware_supported` is `true` and neither `EMBEDDING_URL` nor
+    /// `EMBEDDING_PROVIDER` specifies another backend.
+    pub fn from_lookup_with_hardware<F>(
+        lookup: F,
+        local_hardware_supported: bool,
+    ) -> Result<Self, EmbedError>
     where
         F: Fn(&str) -> Option<String>,
     {
@@ -81,18 +113,21 @@ impl EmbeddingConfig {
         let url = non_empty("EMBEDDING_URL");
         let provider = match non_empty("EMBEDDING_PROVIDER").as_deref() {
             Some("none") => EmbeddingProvider::None,
+            Some("local") => EmbeddingProvider::Local,
             Some("openai-compatible") => EmbeddingProvider::OpenAiCompatible,
-            Some(other) => {
-                return Err(EmbedError::InvalidConfig(format!(
-                    "unsupported EMBEDDING_PROVIDER {other:?}; expected \"openai-compatible\" or \"none\""
-                )));
-            }
-            None => {
+            Some("auto") | None => {
                 if url.is_some() {
                     EmbeddingProvider::OpenAiCompatible
+                } else if local_hardware_supported {
+                    EmbeddingProvider::Local
                 } else {
                     EmbeddingProvider::None
                 }
+            }
+            Some(other) => {
+                return Err(EmbedError::InvalidConfig(format!(
+                    "unsupported EMBEDDING_PROVIDER {other:?}; expected \"auto\", \"local\", \"openai-compatible\", or \"none\""
+                )));
             }
         };
 
@@ -151,6 +186,8 @@ pub enum EmbedError {
     Http(String),
     #[error("invalid embedding response: {0}")]
     InvalidResponse(String),
+    #[error("local embedding engine error: {0}")]
+    Local(String),
 }
 
 /// Embedding provider interface used by search and background backfill.
@@ -159,8 +196,22 @@ pub trait Embedder: Send + Sync + fmt::Debug {
     /// Expected vector length.
     fn dims(&self) -> usize;
 
-    /// True when an external embedding endpoint is configured.
+    /// True when an embedding provider (local or remote) is active.
     fn is_enabled(&self) -> bool;
+
+    /// Provider slug (`"none"`, `"local"`, or `"openai-compatible"`).
+    fn provider_name(&self) -> &'static str {
+        if self.is_enabled() {
+            "openai-compatible"
+        } else {
+            "none"
+        }
+    }
+
+    /// Active model identifier.
+    fn model_name(&self) -> &str {
+        DEFAULT_EMBEDDING_MODEL
+    }
 
     /// Embeds `text`, returning `Ok(None)` when disabled or transiently unreachable.
     /// Dimension mismatches always return `Err(EmbedError::DimensionMismatch)`.
@@ -343,6 +394,14 @@ impl Embedder for OpenAiCompatibleEmbedder {
         true
     }
 
+    fn provider_name(&self) -> &'static str {
+        "openai-compatible"
+    }
+
+    fn model_name(&self) -> &str {
+        &self.model
+    }
+
     async fn embed(&self, text: &str) -> Result<Option<Vec<f32>>, EmbedError> {
         match self.request_embeddings(&[text.to_owned()]).await {
             Ok(mut vecs) => Ok(vecs.pop()),
@@ -351,9 +410,12 @@ impl Embedder for OpenAiCompatibleEmbedder {
                 Err(err)
             }
             // Degrade cleanly to BM25 + signature hash + graph on offline/timeout failures.
-            Err(EmbedError::Timeout(_) | EmbedError::Http(_) | EmbedError::InvalidResponse(_)) => {
-                Ok(None)
-            }
+            Err(
+                EmbedError::Timeout(_)
+                | EmbedError::Http(_)
+                | EmbedError::InvalidResponse(_)
+                | EmbedError::Local(_),
+            ) => Ok(None),
         }
     }
 
@@ -366,6 +428,7 @@ impl Embedder for OpenAiCompatibleEmbedder {
 pub fn build_embedder(config: &EmbeddingConfig) -> Result<Arc<dyn Embedder>, EmbedError> {
     match config.provider {
         EmbeddingProvider::None => Ok(Arc::new(NoopEmbedder::new(config.dims))),
+        EmbeddingProvider::Local => Ok(Arc::new(LocalEmbedder::new(config.dims, None)?)),
         EmbeddingProvider::OpenAiCompatible => Ok(Arc::new(OpenAiCompatibleEmbedder::new(config)?)),
     }
 }
