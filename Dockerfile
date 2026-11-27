@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates ./crates
+COPY skills ./skills
 COPY --from=web-builder /web/dist ./web/dist
 
 RUN cargo build --release --locked --bin callus \
