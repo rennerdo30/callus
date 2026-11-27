@@ -1,6 +1,14 @@
 # Multi-stage production Dockerfile for Callus (zero GPU, minimal Linux runtime).
 # Targets LiteVM deployments (<= 200 MB total stack RAM with PostgreSQL).
 
+FROM node:24-slim AS web-builder
+
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web ./
+RUN npm run build
+
 FROM rust:1.99.1-slim-bookworm AS builder
 
 WORKDIR /build
@@ -14,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates ./crates
+COPY --from=web-builder /web/dist ./web/dist
 
 RUN cargo build --release --locked --bin callus \
     && strip /build/target/release/callus

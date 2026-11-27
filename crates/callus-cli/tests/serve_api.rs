@@ -71,6 +71,18 @@ async fn serve_exposes_healthz_bearer_auth_rest_api_and_streamable_http_mcp() {
     }
     assert!(ready, "callus serve did not become ready on {base_url}");
 
+    // Embedded SPA HTML is served publicly at `/` without requiring Bearer auth.
+    let index_resp = client.get(format!("{base_url}/")).send().await.unwrap();
+    assert!(index_resp.status().is_success());
+    let content_type = index_resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(content_type.contains("text/html"), "got {content_type}");
+    let index_html = index_resp.text().await.unwrap();
+    assert!(index_html.contains("Callus"));
+
     // Protected route rejects missing or wrong Bearer token with 401.
     let unauth = client
         .get(format!("{base_url}/api/v1/overview"))
@@ -98,6 +110,9 @@ async fn serve_exposes_healthz_bearer_auth_rest_api_and_streamable_http_mcp() {
         .await
         .unwrap();
     assert_eq!(overview["pattern_count"], 0);
+    assert_eq!(overview["retries_saved"], 0);
+    assert!(overview["scope_counts"].is_object());
+    assert!(overview["context_breakdown"].is_array());
 
     // Scrubber playground endpoint redacts secrets cleanly.
     let scrub: Value = client

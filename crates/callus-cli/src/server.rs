@@ -1,7 +1,12 @@
 //! `callus serve`: `LiteVM` central HTTP server (`axum`), REST API, Bearer auth,
 //! and Streamable HTTP MCP (`/mcp` via `rmcp`).
 
-use std::{collections::HashSet, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use axum::{
     Json, Router,
@@ -12,8 +17,8 @@ use axum::{
     routing::{get, post},
 };
 use callus_core::{
-    CallusError, Embedder, EmbeddingConfig, EmbeddingProvider, FixStatus, Scope, Scrubber,
-    ScrubberConfig, SearchQuery, build_embedder,
+    CallusError, EdgeType, Embedder, EmbeddingConfig, EmbeddingProvider, FixStatus, NodeKind,
+    Scope, Scrubber, ScrubberConfig, SearchQuery, build_embedder,
 };
 use callus_store::{EngineConfig, KnowledgeStore, LearningEngine, PgStore, SqliteStore};
 use rmcp::transport::streamable_http_server::{
@@ -31,6 +36,7 @@ use crate::{
     hook::{configured_dims, resolve_db_path},
     mcp::CallusMcpServer,
     sync::{SyncPullResponse, SyncPushRequest, SyncPushResponse},
+    ui,
     worker::{consolidate_once, spawn_worker},
 };
 
@@ -185,6 +191,7 @@ pub(crate) fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .merge(protected)
+        .fallback(ui::serve_embedded)
         .with_state(state)
 }
 
@@ -199,29 +206,124 @@ async fn healthz(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+#[derive(Debug, Serialize)]
+struct ContextStat {
+    kind: NodeKind,
+    label: String,
+    hits: u64,
+}
+
+async fn summarize_fix_counts(
+    store: &Arc<dyn KnowledgeStore>,
+    patterns: &[callus_core::ErrorPattern],
+) -> (usize, usize, usize) {
+    let mut verified = 0_usize;
+    let mut candidate = 0_usize;
+    let mut obsolete = 0_usize;
+    let mut seen = HashSet::new();
+    for pat in patterns {
+        if let Ok(cands) = store.fixes_for_pattern(&pat.id).await {
+            for cand in cands {
+                if !seen.insert(cand.fix.id.clone()) {
+                    continue;
+                }
+                match cand.fix.status {
+                    FixStatus::Verified => verified += 1,
+                    FixStatus::Candidate => candidate += 1,
+                    FixStatus::Deprecated | FixStatus::Obsolete => obsolete += 1,
+                }
+            }
+        }
+    }
+    (verified, candidate, obsolete)
+}
+
 async fn overview(State(state): State<AppState>) -> Response {
-    let patterns = match state.engine.store().list_patterns(None, None, 200).await {
+    let store = state.engine.store();
+    let patterns = match store.list_patterns(None, None, 200).await {
         Ok(p) => p,
         Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     };
-    let pending = match state.engine.store().list_pending_embeddings(1000).await {
+    let pending = match store.list_pending_embeddings(1000).await {
         Ok(p) => p.len(),
         Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     };
-    let guards = match state.engine.store().list_active_guards(None).await {
+    let guards = match store.list_active_guards(None).await {
         Ok(g) => g.len(),
         Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     };
+    let edges = match store.list_edges_updated_since("", 500).await {
+        Ok(e) => e,
+        Err(e) => return err_resp(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+
+    let mut retries_saved = 0_u64;
+    let mut context_hits: HashMap<String, u64> = HashMap::new();
+    for edge in &edges {
+        if edge.edge_type == EdgeType::ResolvedBy {
+            retries_saved = retries_saved.saturating_add(edge.worked_count);
+        } else if edge.edge_type == EdgeType::OccursIn {
+            *context_hits.entry(edge.dst_id.clone()).or_insert(0) += edge.hit_count.max(1);
+        }
+    }
+
+    let ctx_ids: Vec<String> = context_hits.keys().cloned().collect();
+    let mut context_breakdown: Vec<ContextStat> = store
+        .list_nodes_by_ids(&ctx_ids)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|n| {
+            matches!(
+                n.kind,
+                NodeKind::Environment | NodeKind::Cli | NodeKind::Model | NodeKind::Repo
+            )
+        })
+        .map(|n| ContextStat {
+            hits: context_hits.get(&n.id).copied().unwrap_or(0),
+            kind: n.kind,
+            label: n.label,
+        })
+        .collect();
+    context_breakdown.sort_by(|a, b| b.hits.cmp(&a.hits).then_with(|| a.label.cmp(&b.label)));
+    context_breakdown.truncate(16);
+
+    let (verified_fix_count, candidate_fix_count, obsolete_fix_count) =
+        summarize_fix_counts(store, &patterns).await;
+
+    let (mut personal, mut repo, mut team, mut public_pack) = (0_usize, 0_usize, 0_usize, 0_usize);
+    for pat in &patterns {
+        match pat.scope {
+            Scope::Personal => personal += 1,
+            Scope::Repo => repo += 1,
+            Scope::Team => team += 1,
+            Scope::PublicPack => public_pack += 1,
+        }
+    }
+
     let total_occurrences: u64 = patterns.iter().map(|p| p.occurrence_count).sum();
     let hotspots: Vec<_> = patterns.iter().take(10).cloned().collect();
 
     Json(json!({
         "pattern_count": patterns.len(),
         "total_occurrences": total_occurrences,
+        "retries_saved": retries_saved,
         "active_guard_count": guards,
+        "verified_fix_count": verified_fix_count,
+        "candidate_fix_count": candidate_fix_count,
+        "obsolete_fix_count": obsolete_fix_count,
         "pending_embeddings": pending,
         "embedding_enabled": state.embedder.is_enabled(),
+        "embedding_dims": store.embedding_dims(),
         "backend": state.backend,
+        "version": env!("CARGO_PKG_VERSION"),
+        "scope_counts": {
+            "personal": personal,
+            "repo": repo,
+            "team": team,
+            "public_pack": public_pack,
+        },
+        "context_breakdown": context_breakdown,
         "hotspots": hotspots,
     }))
     .into_response()
@@ -573,6 +675,17 @@ async fn sync_pull(
 async fn run_consolidation(State(state): State<AppState>) -> Response {
     let report = consolidate_once(state.engine.store(), &state.embedder, 90, &now_iso_utc()).await;
     Json(report).into_response()
+}
+
+pub(crate) fn run_local_ui(port: u16, db: Option<PathBuf>) -> Result<(), CallusError> {
+    run(Args {
+        bind: format!("127.0.0.1:{port}"),
+        database_url: None,
+        db,
+        api_token: None,
+        max_connections: 4,
+        worker_interval_secs: 60,
+    })
 }
 
 pub(crate) fn run(args: Args) -> Result<(), CallusError> {

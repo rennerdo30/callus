@@ -8,6 +8,7 @@ mod mcp;
 mod scrub_test;
 mod server;
 mod sync;
+mod ui;
 mod worker;
 
 use std::process::ExitCode;
@@ -33,6 +34,8 @@ enum Command {
     Mcp(mcp::Args),
     /// Run the central HTTP REST API and Streamable HTTP MCP server (`/mcp`)
     Serve(server::Args),
+    /// Launch the embedded local Web UI against the local SQLite database
+    Ui(ui::Args),
     /// Bidirectional scoped sync with a central Callus server
     Sync(sync::Args),
     /// Export budgeted rule diffs, deterministic guard hooks, or rule packs
@@ -51,6 +54,7 @@ fn run(command: Command) -> Result<(), CallusError> {
         }
         Command::Mcp(args) => mcp::run(args),
         Command::Serve(args) => server::run(args),
+        Command::Ui(args) => ui::run(args),
         Command::Sync(args) => sync::run(args),
         Command::Export(args) => export::run(args),
     }
