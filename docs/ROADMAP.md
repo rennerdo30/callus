@@ -31,12 +31,12 @@ Every milestone is shippable, testable, and verifiable on its own.
 **Goal:** Multi-user team backend deployed via Docker Compose on a LiteVM (`app` + tuned `pgvector/pgvector`), supporting 10+ simultaneous users with external `llama.cpp` embeddings.
 
 ### Deliverables
-- [ ] **PostgreSQL** `KnowledgeStore` implementation (`sqlx` + `pgvector` + `tsvector`/`pg_trgm` + `graph_nodes`/`graph_edges` + migrations)
-- [ ] `callus serve` (Axum REST API, Streamable HTTP MCP at `/mcp`, Bearer token auth, health/metrics endpoint)
-- [ ] Bidirectional scoped sync (`callus sync`, `sync_outbox`, CRDT-style counter merges, `personal` / `repo` / `team` enforcement)
-- [ ] Background consolidation worker (cluster dedup, pending embedding backfill, staleness/model-churn decay)
-- [ ] Production **multi-stage Dockerfile** (minimal Linux image) + LiteVM-tuned **`docker-compose.yml`** (`app` + `postgres`, external `EMBEDDING_URL` env config)
-- [ ] Concurrency & load benchmark (10+ simulated simultaneous users on LiteVM budget, verifying RAM ≤ 200 MB and p95 latency)
+- [x] **PostgreSQL** `KnowledgeStore` implementation (`sqlx` + `pgvector` + `tsvector`/`pg_trgm` + `graph_nodes`/`graph_edges` + migrations)
+- [x] `callus serve` (Axum REST API, Streamable HTTP MCP at `/mcp`, Bearer token auth, health/metrics endpoint)
+- [x] Bidirectional scoped sync (`callus sync`, `sync_outbox`, CRDT-style counter merges, `personal` / `repo` / `team` enforcement)
+- [x] Background consolidation worker (cluster dedup, pending embedding backfill, staleness/model-churn decay)
+- [x] Production **multi-stage Dockerfile** (minimal Linux image) + LiteVM-tuned **`docker-compose.yml`** (`app` + `postgres`, external `EMBEDDING_URL` env config)
+- [x] Concurrency & load benchmark (10+ simulated simultaneous users on LiteVM budget, verifying RAM ≤ 200 MB and p95 latency)
 
 ---
 
