@@ -140,12 +140,14 @@ When looking up fixes for a live failure or query:
      $$\text{RRF}(p) = \frac{w_{\text{bm25}}}{k + \text{rank}_{\text{bm25}}} + \frac{w_{\text{vec}}}{k + \text{rank}_{\text{vec}}} + w_{\text{exact}} \cdot \mathbb{I}[\text{exact}]$$
      *(default $k = 60$)*
 
-2. **Graph Context Multiplier (per candidate fix $f$ linked via `RESOLVED_BY`):**
+2. **Graph Context Multiplier & Strict Repository Isolation (per candidate fix $f$ linked via `RESOLVED_BY`):**
+   - **Strict repo isolation:** If a pattern has `scope = 'repo'`, it is **excluded** unless `query.repo_hash == pattern.repo_hash`. Project-specific quirks never leak into unrelated repositories.
+   - **Automatic repo-vs-global classification:** New failures in a repository start as `scope = 'repo'` linked via `(ErrorPattern) -[:OCCURS_IN]-> (repo:<hash>)`. Once the same pattern occurs across **≥ 2 distinct repositories** (and does not hard-reference `<REPO>` local scripts), Callus automatically promotes it to `scope = 'team'` (`repo_hash = NULL`) so general OS/shell/agent lessons apply everywhere.
    - Exclude fixes with outgoing `SUPERSEDED_BY` or `status IN ('deprecated', 'obsolete')`.
    - Exclude fixes marked `OBSOLETE_IN` for the caller's `(cli, model)`.
    - Multiply by context match weights:
      - Same `os` + `shell`: `× 1.4` (different OS for a shell error: `× 0.3`)
-     - Same `repo_hash`: `× 1.3`
+     - Same `repo_hash` (for global patterns also observed in this repo): `× 1.3`
      - Same `cli` / `model`: `× 1.15`
 
 3. **Confidence & Recency:**
